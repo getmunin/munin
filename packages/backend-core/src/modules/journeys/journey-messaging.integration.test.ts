@@ -7,7 +7,7 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { JourneysService } from './journeys.service.ts';
 import { JourneyRuntimeService } from './journey-runtime.service.ts';
@@ -45,6 +45,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
   let runtime: JourneyRuntimeService;
   let worker: JourneyRuntimeWorker;
   let outreach: OutreachService;
+  let conv: ConvService;
   let monitor: JourneyMonitorService;
   let publishing: JourneyPublishingService;
   let alerts: AlertsService;
@@ -89,7 +90,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     webhooks.registerSink(new JourneyEventSink());
     webhooks.registerSink(new OutreachOutcomeSink(new CuratorJobsService(webhooks)));
     crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
-    const conv = new ConvService(
+    conv = new ConvService(
       webhooks,
       new ConversationClaimsService(webhooks),
       new CuratorJobsService(webhooks),
@@ -105,8 +106,8 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       appDb,
       new CuratorJobsService(webhooks),
     );
-    journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, outreach, new CuratorJobsService(webhooks));
+    journeys = new JourneysService(webhooks, null, outreach);
+    runtime = new JourneyRuntimeService(webhooks, crm, outreach, new CuratorJobsService(webhooks), conv);
     alerts = new AlertsService(webhooks);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
     monitor = new JourneyMonitorService(journeys, alerts);
@@ -497,6 +498,56 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     await worker.tick(new Date(Date.now() + 5 * 60_000));
     await worker.tick(new Date(Date.now() + 5 * 60_000));
     expect(await enrollment(olaRun)).toMatchObject({ state: 'done', exitReason: 'reached_end' });
+  });
+
+  it('leaves a reply to a journey email to the journey, and hands a held reply to the team', async () => {
+    const withReply = await publish([
+      welcome({ approval: 'auto', next: 'wait', onReply: 'replied' }),
+      { id: 'wait', type: 'wait', duration: 'P7D', next: 'done' },
+      { id: 'replied', type: 'exit', reason: 'replied' },
+      done,
+    ]);
+    const plain = await publish([
+      welcome({ approval: 'auto', next: 'wait' }),
+      { id: 'wait', type: 'wait', duration: 'P7D', next: 'done' },
+      done,
+    ]);
+    const kari = await contact();
+    const ola = await contact();
+    const kariRun = await enroll(withReply, kari.id);
+    const olaRun = await enroll(plain, ola.id);
+    await worker.tick();
+    const kariThread = (await enrollment(kariRun)).conversationId!;
+    const olaThread = (await enrollment(olaRun)).conversationId!;
+    for (const conversationId of [kariThread, olaThread]) {
+      await asAgent(() =>
+        conv.sendMessage({ conversationId, body: 'Takk! Hva koster det?', authorType: 'end_user', authorId: 'eu_test' }),
+      );
+    }
+    const replyDrafts = await db
+      .select()
+      .from(schema.curatorJobs)
+      .where(and(eq(schema.curatorJobs.orgId, orgId), eq(schema.curatorJobs.jobUri, 'skill://outreach/draft-reply-email')));
+    expect(replyDrafts).toEqual([]);
+    await expect(
+      asAgent(() => outreach.proposeReply({ conversationId: kariThread, draftBody: 'Hei Kari!' })),
+    ).rejects.toThrow(/outreach_journey_managed/);
+
+    await worker.tick(new Date(Date.now() + 5 * 60_000));
+    await worker.tick(new Date(Date.now() + 5 * 60_000));
+    expect(await enrollment(kariRun)).toMatchObject({ exitReason: 'replied' });
+    expect(await enrollment(olaRun)).toMatchObject({ state: 'waiting' });
+    const threads = await db
+      .select({ id: schema.convConversations.id, needsHumanAttention: schema.convConversations.needsHumanAttention })
+      .from(schema.convConversations)
+      .where(inArray(schema.convConversations.id, [kariThread, olaThread]));
+    expect(Object.fromEntries(threads.map((t) => [t.id, t.needsHumanAttention]))).toEqual({
+      [kariThread]: false,
+      [olaThread]: true,
+    });
+    await expect(
+      asAgent(() => outreach.proposeReply({ conversationId: olaThread, draftBody: 'Hei Ola, det koster 99 kr i måneden.' })),
+    ).resolves.toMatchObject({ kind: 'reply', status: 'pending' });
   });
 
   it('files an agent-written draft with its sources for review, or the reference version if the agent is silent', async () => {

@@ -2064,9 +2064,7 @@ export const outreachCampaigns = pgTable(
       .references(() => orgs.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     brief: text('brief').notNull(),
-    segmentId: text('segment_id')
-      .notNull()
-      .references(() => crmSegments.id, { onDelete: 'restrict' }),
+    segmentId: text('segment_id').references(() => crmSegments.id, { onDelete: 'restrict' }),
     channelId: text('channel_id')
       .notNull()
       .references(() => convChannels.id, { onDelete: 'restrict' }),
@@ -2221,7 +2219,9 @@ export const journeys = pgTable(
   },
   (t) => ({
     nameUq: uniqueIndex('journeys_org_name_uq').on(t.orgId, t.name),
-    campaignUq: uniqueIndex('journeys_campaign_uq').on(t.outreachCampaignId),
+    campaignUq: uniqueIndex('journeys_campaign_uq')
+      .on(t.outreachCampaignId)
+      .where(sql`status <> 'archived'`),
     nextEntryIdx: index('journeys_next_entry_idx')
       .on(t.nextEntryAt)
       .where(sql`status = 'live'`),

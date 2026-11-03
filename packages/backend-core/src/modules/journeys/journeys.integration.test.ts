@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { JourneysService } from './journeys.service.ts';
 import { JourneyTemplatesService } from './journey-templates.service.ts';
+import { OutreachService } from '../outreach/outreach.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
@@ -28,6 +29,9 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
   let agent: ActorIdentity;
   let outsider: ActorIdentity;
   let emailCampaignId: string;
+  let emailChannelId: string;
+  let smsChannelId: string;
+  let outreach: OutreachService;
   let smsCampaignId: string;
   let segmentId: string;
 
@@ -45,8 +49,9 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     agent = new ActorIdentity('admin_agent', 'agt_journeys_test', orgId, ['*'], ['admin']);
     outsider = new ActorIdentity('admin_agent', 'agt_outsider', otherOrgId, ['*'], ['admin']);
     const webhooks = new WebhookDispatcher();
-    svc = new JourneysService(webhooks);
     crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
+    outreach = new OutreachService(webhooks, {} as never, crm, {} as never, [], appDb, {} as never);
+    svc = new JourneysService(webhooks, null, outreach);
   });
 
   afterAll(async () => {
@@ -78,6 +83,8 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       .insert(schema.convChannels)
       .values({ orgId, type, vendor: type === 'email' ? 'smtp' : 'twilio', name, active: true, config: {} })
       .returning();
+    if (type === 'email') emailChannelId = channel!.id;
+    else smsChannelId = channel!.id;
     const [row] = await db
       .insert(schema.outreachCampaigns)
       .values({
@@ -130,6 +137,59 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     );
     await asAgent(() => svc.create({ name: 'First', outreachCampaignId: emailCampaignId }));
     await expect(asAgent(() => svc.create({ name: 'Second', outreachCampaignId: emailCampaignId }))).rejects.toThrow(
+      ConflictException,
+    );
+  });
+
+  it('lets a new journey take over a campaign once the journey running it is archived', async () => {
+    const first = await asAgent(() => svc.create({ name: 'First', outreachCampaignId: emailCampaignId }));
+    await asAgent(() => svc.archive(first.id));
+    const second = await asAgent(() => svc.create({ name: 'Second', outreachCampaignId: emailCampaignId }));
+    expect(second.outreachCampaignId).toBe(emailCampaignId);
+  });
+
+  it('creates the campaign a journey sends through from its email channel, and keeps outreach from reconfiguring it', async () => {
+    const journey = await asAgent(() => svc.create({ name: 'Welcome', senderChannelId: emailChannelId }));
+    const campaign = await asAgent(() => outreach.getCampaign(journey.outreachCampaignId));
+    expect(campaign).toMatchObject({
+      name: 'Welcome (journey)',
+      segmentId: null,
+      channelId: emailChannelId,
+      enabled: false,
+      autoDraftFirstTouch: false,
+      autoDraftReplies: false,
+      journeyId: journey.id,
+    });
+    await expect(asAgent(() => outreach.updateCampaign({ id: campaign.id, patch: { enabled: true } }))).rejects.toThrow(
+      /outreach_journey_managed/,
+    );
+    await expect(
+      asAgent(() => outreach.updateCampaign({ id: campaign.id, patch: { channelId: smsChannelId } })),
+    ).rejects.toThrow(/outreach_journey_managed/);
+    await expect(
+      asAgent(() => outreach.updateCampaign({ id: campaign.id, patch: { name: 'Welcome mail' } })),
+    ).resolves.toMatchObject({ name: 'Welcome mail', journeyId: journey.id });
+
+    const [backup] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'email', vendor: 'smtp', name: 'Backup mail', active: true, config: {} })
+      .returning();
+    await db.update(schema.journeys).set({ status: 'live' }).where(eq(schema.journeys.id, journey.id));
+    await expect(
+      asAgent(() => outreach.updateCampaign({ id: campaign.id, patch: { channelId: backup!.id } })),
+    ).rejects.toThrow(/pause the journey/);
+    await db.update(schema.journeys).set({ status: 'paused' }).where(eq(schema.journeys.id, journey.id));
+    await expect(
+      asAgent(() => outreach.updateCampaign({ id: campaign.id, patch: { channelId: backup!.id } })),
+    ).resolves.toMatchObject({ channelId: backup!.id });
+  });
+
+  it('refuses a sending channel that is not email, and a campaign name already in use', async () => {
+    await expect(asAgent(() => svc.create({ name: 'Texts', senderChannelId: smsChannelId }))).rejects.toThrow(
+      BadRequestException,
+    );
+    await campaign('email', 'Taken (journey)');
+    await expect(asAgent(() => svc.create({ name: 'Taken', senderChannelId: emailChannelId }))).rejects.toThrow(
       ConflictException,
     );
   });
@@ -236,7 +296,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(listed.map((t) => t.slug)).toContain('trial-onboarding');
     await expect(
       asAgent(() =>
-        templates.instantiate({ slug: 'trial-onboarding', locale: 'nb', name: 'Prøve', outreachCampaignId: emailCampaignId, params: {} }),
+        templates.instantiate({ slug: 'trial-onboarding', locale: 'nb', name: 'Prøve', senderChannelId: emailChannelId, params: {} }),
       ),
     ).rejects.toThrow(BadRequestException);
     const created = await asAgent(() =>
@@ -244,7 +304,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
         slug: 'trial-onboarding',
         locale: 'nb',
         name: 'Prøve',
-        outreachCampaignId: emailCampaignId,
+        senderChannelId: emailChannelId,
         params: { segmentId },
       }),
     );

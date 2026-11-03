@@ -1,12 +1,12 @@
 ---
 title: Build a journey
-description: Turn a lifecycle goal ("convert trial users who invited no colleagues by day 5") into a journey draft on an email outreach campaign — entry, waits, branches, emails, actions and a goal — then validate it. Agents draft and edit; publishing always needs a signed-in person in the Munin dashboard.
+description: Turn a lifecycle goal ("convert trial users who invited no colleagues by day 5") into a journey draft — entry, waits, branches, emails, actions and a goal — then validate it. Agents draft and edit; publishing always needs a signed-in person in the Munin dashboard.
 audiences: [admin]
 ---
 
 # Build a journey
 
-A journey is a versioned graph that moves each contact through triggers, waits, branches, emails and actions towards one goal. It wraps one email outreach campaign: the campaign supplies the sending channel, brief, cadence rules and outcome-extraction fields, and the journey supplies the graph.
+A journey is a versioned graph that moves each contact through triggers, waits, branches, emails and actions towards one goal. It sends from one email channel. Behind the scenes it gets its own outreach campaign, which carries the sending channel and outcome-extraction fields; the journey supplies everything else, and outreach tools cannot reconfigure that campaign while the journey exists.
 
 **You draft; a person publishes.** Every edit lands in the journey's open draft version. Published versions never change. Nothing reaches a customer until someone signed in to the Munin dashboard publishes the draft, so when the draft validates cleanly, say it is ready for review and stop.
 
@@ -17,11 +17,11 @@ A journey is a versioned graph that moves each contact through triggers, waits, 
    - Product events the org's backend sends: `analytics_list_product_event_names`. Only names listed there will ever arrive; ask the operator before relying on one that is not.
    - Saved audiences: `crm_list_segments`. Segment filters can include behaviour, for example "did not trigger `teammate.invited` within 5 days".
    - Email layouts: `outreach_list_email_templates`.
-3. Pick the campaign with `outreach_list_campaigns`. It must use an email channel and can carry only one journey. Create the campaign first with `outreach_create_campaign` if none fits. If the campaign already has a first touch and follow-up steps, `journeys_create_from_campaign` turns them into a draft journey (agent-drafted emails, waits, a reply ends the sequence) to adapt instead of starting from scratch; from then on the journey runs that campaign.
+3. Pick the email channel to send from with `conv_list_channels` (type `email`). If the operator already runs an outreach campaign with a first touch and follow-up steps for this goal, `journeys_create_from_campaign` turns it into a draft journey (agent-drafted emails, waits, a reply ends the sequence) to adapt instead of starting from scratch; the campaign keeps sending its own emails until the journey is published, then the journey takes over.
 
 ## Draft it
 
-1. `journeys_create` with a name, the campaign id and, if you already know the shape, a whole `spec`.
+1. `journeys_create` with a name, the email channel as `senderChannelId` and, if you already know the shape, a whole `spec`.
 2. Refine with small edits: `journeys_add_node`, `journeys_update_node`, `journeys_remove_node`, and `journeys_update_settings` for `start`, `entry`, `exit`, `goal` and `settings`. Use `journeys_replace_draft` when restructuring most of the graph.
 3. `journeys_validate` after each round of edits. Fix every error; read the warnings and fix the ones that are mistakes.
 
@@ -34,7 +34,7 @@ Rules that keep a journey safe and readable:
 - **Calls go through a person too.** A `message` node with `channel: "voice"` files a call proposal on `settings.voiceChannelId`; `content.body` is the opening the voice agent uses (at most 1000 characters). The agent may write the opening per person (`draftBy: "agent"` with a `brief`), but only a signed-in person approves a call — never `auto`. After the call the outcome pass writes `reached`, `no_contact`, `refused` or `wrong_contact`, and `onOutcome` routes each to a node; `onOutcome.timeout` (after `outcomeTimeout`, default 6 hours) and any unmapped outcome continue on `next`.
 - **Mark transactional email honestly.** `class: "transactional"` reaches unsubscribed contacts, so use it only for messages the contact needs to use the product (receipts, password or account notices), never for promotion.
 - **Give every `wait_for` an `onTimeout`.** Without it, contacts whose event never comes simply leave.
-- **Use `onReply` on emails that invite an answer.** A reply always pauses the contact's run; Conversations answers it, and the journey continues on `onReply`, or at the same point once the thread closes.
+- **Use `onReply` on emails that invite an answer.** A reply always pauses the contact's run. With `onReply` the journey answers it on that path, and outreach drafts no separate reply. Without it, the conversation is flagged for the team in Conversations and the run waits there until the thread closes.
 - **Read replies with an intent step.** Point the email's `onReply` at an `agent` node in `decide` mode with `inputs: ["reply", "thread", "contact"]`, edges such as `interested`, `question`, `not_now` and `stop`, and `fallback: "question"` — the safe path where a person or the support agent answers and the journey waits. Choosing `stop` also ends every other journey the person is in.
 - **Start from a conversation topic** with an event trigger on `conversation.topic_set` and `where: { "topicSlug": "pricing" }`; list topics with `conv_list_topics`.
 - **Follow a company instead of a person.** `entry.subject: "company"` runs the journey once per company rather than once per contact. An event from any of its people — or an event that names the company with `companyId` — enters it and counts toward its goal and exits, a segment trigger enters each company that has at least one eligible contact in the segment, and `journeys_enroll` takes a `companyId` (or a contact whose company it then follows). Branches read the company's fields and what any of its people did; `crm.add_tag` and `crm.remove_tag` tag the company, `crm.log_activity` logs on the company, and `crm.update_contact` and contact date fields are refused because there is no single person. A message step in a company journey names its `recipients` — `tag`, `titleContains` or both, and `max` (default 3, at most 10) — and the step files one proposal per chosen person, ordered by who was contacted most recently; each still passes their own consent, weekly cap and quiet hours. The run moves on once every proposal is decided: on `next` if at least one was sent, ending as dismissed only if all were. Email, SMS and chat work; calls, agent drafts and `onUnseen` follow one person and are refused.

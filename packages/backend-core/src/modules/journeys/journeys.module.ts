@@ -1,5 +1,6 @@
 import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { WebhookDispatcher } from '@getmunin/core';
+import { ConvModule } from '../conv/conv.module.ts';
 import { CrmModule } from '../crm/crm.module.ts';
 import { OutreachModule } from '../outreach/outreach.module.ts';
 import { CuratorModule } from '../curator/curator.module.ts';
@@ -14,7 +15,7 @@ import { JourneyTemplatesService } from './journey-templates.service.ts';
 import { JourneyMonitorService } from './journey-monitor.service.ts';
 
 @Module({
-  imports: [CrmModule, OutreachModule, CuratorModule],
+  imports: [ConvModule, CrmModule, OutreachModule, CuratorModule],
   providers: [
     JourneysService,
     JourneysTools,

@@ -13,7 +13,7 @@ This is a **playbook** — it composes per-module skills rather than reproducing
 ## TL;DR
 
 1. Make sure the product sends `trial.started`, `teammate.invited` and `subscription.started` to `POST /v1/events`.
-2. Create (or pick) an email outreach campaign and a "Trialists" segment.
+2. Pick the email channel to send from and create a "Trialists" segment.
 3. Build the journey below with the `journeys_*` tools, validate and simulate it.
 4. `journeys_request_publish` and hand the `reviewPath` to the operator. They confirm in the dashboard.
 5. Watch `journeys_get_report` daily for the first two weeks; the launch gate is met when integrity stays at zero.
@@ -33,11 +33,11 @@ If any is missing, tell the operator which event their developers must send. The
 ## Step 2 — audience and sender
 
 - A segment of people who may receive onboarding email, for example `tagsAny: ["trial"]` (`crm_create_segment`). Segment members must have a recorded lawful basis; contacts without one never enter.
-- An email outreach campaign (`outreach_list_campaigns`, or `outreach_create_campaign`) with an active email channel. One journey per campaign; the campaign's own first-touch and follow-up drafting stop once a journey runs it.
+- An active email channel to send from (`conv_list_channels`, type `email`). It becomes the journey's `senderChannelId`.
 
 ## Step 3 — the journey
 
-Create it with `journeys_create` and this spec, replacing the segment id, then adjust copy and timing with the operator:
+Create it with `journeys_create`, the email channel as `senderChannelId` and this spec, replacing the segment id, then adjust copy and timing with the operator:
 
 ```json
 {

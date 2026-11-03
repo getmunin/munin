@@ -21,7 +21,7 @@ Ask at most three short questions; propose sensible defaults for the rest and sa
 
 ## 2. Start from the closest template
 
-`journeys_list_templates` for the operator's locale. If one fits the shape of the brief, `journeys_get_template` to read it, then `journeys_instantiate_template` with its parameters on the right email campaign. If none fits, write the spec yourself with `journeys_create`.
+`journeys_list_templates` for the operator's locale. If one fits the shape of the brief, `journeys_get_template` to read it, then `journeys_instantiate_template` with its parameters and the email channel to send from as `senderChannelId`. If none fits, write the spec yourself with `journeys_create`.
 
 ## 3. Adapt it
 

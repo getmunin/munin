@@ -58,6 +58,11 @@ const NODE_TYPE_REFERENCE = [
   },
   { type: 'jump', does: 'Loop back to another node; each node has a per-contact visit cap.', fields: '{ to }' },
   { type: 'exit', does: 'End the run with a reason code.', fields: '{ reason?: "reached_end" }' },
+  {
+    type: 'agent',
+    does: 'A model reads only the declared inputs about this person (national ID numbers removed) and picks one declared edge, logging its reason. If it has not answered within the timeout — or no model is configured — the run takes the fallback edge.',
+    fields: '{ mode: "decide", instructions, edges: { name: nodeId, … } (2–10), fallback: one edge name, inputs: ["contact"|"company"|"reply"|"thread"|"events"|"context"], timeout?: "PT10M" }',
+  },
   ...RESERVED_JOURNEY_NODE_TYPES.map((type) => ({
     type,
     does: 'Not available yet; validation rejects it.',
@@ -131,6 +136,26 @@ export class JourneysTools {
   })
   getReport(args: { journeyId: string; version?: number }) {
     return this.publishing.report(args.journeyId, args.version);
+  }
+
+  @McpTool({
+    name: 'journeys_submit_decision',
+    title: 'Journeys: Submit an agent step decision',
+    description:
+      'Answer a waiting agent decide step in a live journey: choose one of the step\'s declared edges for that person, with a short reason a reviewer can check. Used by the curator pass skill://journeys/decide-step; refused once the step was decided or has timed out to its fallback edge.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: z.object({
+      stepRunId: Id,
+      edge: z.string().regex(/^[a-z][a-z0-9_]{0,47}$/),
+      reason: z.string().min(1).max(500),
+      confidence: z.enum(['high', 'medium', 'low']).optional(),
+    }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  submitDecision(args: { stepRunId: string; edge: string; reason: string; confidence?: 'high' | 'medium' | 'low' }) {
+    return this.runtime.submitDecision(args);
   }
 
   @McpTool({

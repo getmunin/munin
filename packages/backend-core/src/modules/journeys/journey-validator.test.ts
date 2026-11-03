@@ -75,7 +75,7 @@ describe('journey validator', () => {
 
   it('rejects node types that are not available yet', () => {
     const spec = trialSpec();
-    spec.nodes.splice(2, 1, { id: 'invited', type: 'agent', mode: 'decide', next: 'done' } as never);
+    spec.nodes.splice(2, 1, { id: 'invited', type: 'approval', next: 'done' } as never);
     expect(codes(spec)).toContain('node_type_unavailable');
   });
 
@@ -108,6 +108,30 @@ describe('journey validator', () => {
     const spec = trialSpec({ entry: { trigger: { type: 'event', event: 'journey.exited' } } });
     delete (spec as { goal?: unknown }).goal;
     expect(codes(spec)).toEqual(expect.arrayContaining(['missing_goal', 'self_trigger']));
+  });
+
+  it('accepts an agent decide node and checks its fallback edge', () => {
+    const agent = {
+      id: 'invited',
+      type: 'agent',
+      mode: 'decide',
+      instructions: 'Is this trial user likely to buy?',
+      edges: { likely: 'tag_stuck', unlikely: 'done' },
+      fallback: 'unlikely',
+      inputs: ['contact', 'events'],
+    };
+    const ok = trialSpec();
+    ok.nodes.splice(2, 1, agent as never);
+    expect(codes(ok)).toEqual([]);
+    const parsed = parseJourneySpec(ok);
+    expect(parsed.spec?.nodes[2]).toMatchObject({ timeout: 'PT10M' });
+
+    const bad = trialSpec();
+    bad.nodes.splice(2, 1, { ...agent, fallback: 'maybe' } as never);
+    expect(codes(bad)).toContain('agent_fallback');
+
+    const noModel = validateJourneySpec(parseJourneySpec(ok).spec!, { ...refs, llmConfigured: false });
+    expect(noModel.warnings.map((w) => w.code)).toContain('agent_without_model');
   });
 
   it('warns about a wait_for without a timeout path', () => {

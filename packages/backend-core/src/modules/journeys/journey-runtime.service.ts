@@ -10,6 +10,8 @@ import {
 } from '@getmunin/types';
 import { CrmService } from '../crm/crm.service.ts';
 import { OutreachService } from '../outreach/outreach.service.ts';
+import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
+import { buildAgentInputs, buildDecidePrompt } from './journey-agent-inputs.ts';
 import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from '../crm/segment-filter.ts';
 import { collectConditionNeeds, evaluateCondition, type ConditionFacts } from './journey-conditions.ts';
 import { JOURNEY_RUNTIME_ACTOR_ID, journeyEventKey } from './journey-event.sink.ts';
@@ -21,6 +23,7 @@ export type EnrollmentState = (typeof ENROLLMENT_STATES)[number];
 const MAX_NODES_PER_RUN = 50;
 const COMPLETED_REASONS: ReadonlySet<string> = new Set(['reached_end', 'goal_reached']);
 const APPROVAL_TIMEOUT_MS = 7 * 86_400_000;
+export const DECIDE_STEP_JOB_URI = 'skill://journeys/decide-step';
 const REPLY_HOLD_MS = 14 * 86_400_000;
 const PROPOSAL_RESOLUTIONS: Record<string, string> = {
   'outreach.proposal.sent': 'proposal_sent',
@@ -73,6 +76,7 @@ export interface StepRunDto {
   input: Record<string, unknown>;
   output: Record<string, unknown>;
   proposalId: string | null;
+  agent?: { jobId: string; status: string; totalTokens: number | null; tier: 'fast' | 'smart' } | null;
   startedAt: string;
   finishedAt: string | null;
 }
@@ -91,7 +95,7 @@ type Outcome =
   | { kind: 'retry'; at: Date; reason: string };
 
 interface WaitSpec {
-  kind: 'timer' | 'event' | 'proposal' | 'conversation_close';
+  kind: 'timer' | 'event' | 'proposal' | 'conversation_close' | 'agent';
   wakeAt?: Date;
   eventKey?: string;
   match?: Record<string, unknown>;
@@ -118,6 +122,7 @@ export class JourneyRuntimeService {
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(CrmService) private readonly crm: CrmService,
     @Inject(OutreachService) private readonly outreach: OutreachService,
+    @Inject(CuratorJobsService) private readonly curatorJobs: Pick<CuratorJobsService, 'enqueue'>,
   ) {}
 
 
@@ -501,6 +506,8 @@ export class JourneyRuntimeService {
         return this.executeAction(step, node);
       case 'message':
         return this.executeMessage(step, node);
+      case 'agent':
+        return this.executeAgent(step, node);
       default:
         return { kind: 'exit', reason: 'node_type_unavailable' };
     }
@@ -583,6 +590,130 @@ export class JourneyRuntimeService {
       output: { proposalId: proposal.id, status: proposal.status },
       reason: proposal.status === 'approved' ? 'scheduled' : 'awaiting review',
     };
+  }
+
+  private async executeAgent(
+    step: StepContext,
+    node: Extract<JourneyNode, { type: 'agent' }>,
+  ): Promise<Outcome> {
+    const ctx = getCurrentContext();
+    const [run] = await ctx.db
+      .select({ output: schema.journeyStepRuns.output })
+      .from(schema.journeyStepRuns)
+      .where(eq(schema.journeyStepRuns.id, step.stepRunId))
+      .limit(1);
+    const previous = run?.output ?? {};
+    if (step.resumed) {
+      const decision = previous.decision as { edge?: string; reason?: string } | undefined;
+      if (step.resumed.resolution === 'agent_decided' && decision?.edge && decision.edge in node.edges) {
+        return {
+          kind: 'advance',
+          edge: decision.edge,
+          to: node.edges[decision.edge],
+          output: previous,
+          reason: decision.reason ?? 'agent decided',
+        };
+      }
+      return {
+        kind: 'advance',
+        edge: node.fallback,
+        to: node.edges[node.fallback],
+        output: { ...previous, decision: { edge: node.fallback, fallback: true, reason: 'no decision in time' } },
+        reason: 'fallback: no decision in time',
+      };
+    }
+    const [journey] = await ctx.db
+      .select({ name: schema.journeys.name })
+      .from(schema.journeys)
+      .where(eq(schema.journeys.id, step.enrollment.journeyId))
+      .limit(1);
+    const inputs = await buildAgentInputs(node, {
+      contactId: step.enrollment.contactId,
+      endUserId: step.enrollment.endUserId,
+      conversationId: step.enrollment.conversationId,
+      context: step.enrollment.context,
+    });
+    const job = await this.curatorJobs.enqueue({
+      jobUri: DECIDE_STEP_JOB_URI,
+      userPrompt: buildDecidePrompt({ node, journeyName: journey?.name ?? 'journey', inputs }),
+      sourceEventType: 'journey.agent.decide',
+      sourceEventPayload: {
+        stepRunId: step.stepRunId,
+        enrollmentId: step.enrollment.id,
+        journeyId: step.enrollment.journeyId,
+        nodeId: node.id,
+      },
+      dedupeKey: `journey-decide:${step.stepRunId}`,
+    });
+    const timeoutMs = parseIsoDurationMs(node.timeout) ?? 600_000;
+    return {
+      kind: 'wait',
+      wait: { kind: 'agent', timeoutAt: new Date(step.now.getTime() + timeoutMs) },
+      output: { curatorJobId: job.job.id, inputs: node.inputs },
+      reason: 'waiting for the agent to decide',
+    };
+  }
+
+  async submitDecision(input: {
+    stepRunId: string;
+    edge: string;
+    reason: string;
+    confidence?: 'high' | 'medium' | 'low';
+  }): Promise<{ accepted: true; edge: string; nextNode: string }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const sr = schema.journeyStepRuns;
+    const [run] = await ctx.db
+      .select()
+      .from(sr)
+      .where(and(eq(sr.orgId, actor.orgId), eq(sr.id, input.stepRunId)))
+      .limit(1);
+    if (!run || run.nodeType !== 'agent') {
+      throw new NotFoundException(`journeys_not_found: agent step ${input.stepRunId}`);
+    }
+    const [wait] = await ctx.db
+      .select()
+      .from(schema.journeyWaits)
+      .where(
+        and(
+          eq(schema.journeyWaits.stepRunId, run.id),
+          eq(schema.journeyWaits.kind, 'agent'),
+          isNull(schema.journeyWaits.resolvedAt),
+        ),
+      )
+      .limit(1);
+    if (!wait || run.status !== 'waiting') {
+      throw new ConflictException(
+        `journeys_conflict: step ${input.stepRunId} is no longer waiting for a decision (it was decided or timed out)`,
+      );
+    }
+    const enrollment = await this.loadEnrollment(run.enrollmentId);
+    const spec = await this.spec(enrollment.journeyId, enrollment.version);
+    const node = spec.nodes.find((n) => n.id === run.nodeId);
+    if (node?.type !== 'agent') throw new NotFoundException(`journeys_not_found: agent node ${run.nodeId}`);
+    const nextNode = node.edges[input.edge];
+    if (!nextNode) {
+      throw new BadRequestException(
+        `journeys_invalid: "${input.edge}" is not an edge of this step; choose one of ${Object.keys(node.edges).join(', ')}`,
+      );
+    }
+    await ctx.db
+      .update(sr)
+      .set({
+        output: {
+          ...run.output,
+          decision: {
+            edge: input.edge,
+            reason: input.reason,
+            confidence: input.confidence ?? null,
+            decidedBy: actor.id,
+            decidedAt: new Date().toISOString(),
+          },
+        },
+      })
+      .where(eq(sr.id, run.id));
+    await this.resolveWait(wait, 'agent_decided');
+    return { accepted: true, edge: input.edge, nextNode };
   }
 
   private async rememberThread(enrollmentId: string, conversationId: string | null): Promise<void> {
@@ -844,6 +975,20 @@ export class JourneyRuntimeService {
       .select()
       .from(schema.journeyWaits)
       .where(and(eq(schema.journeyWaits.enrollmentId, enrollmentId), isNull(schema.journeyWaits.resolvedAt)));
+    const jobIds = steps
+      .map((s) => s.output.curatorJobId)
+      .filter((id): id is string => typeof id === 'string');
+    const jobs = jobIds.length
+      ? await ctx.db
+          .select({
+            id: schema.curatorJobs.id,
+            status: schema.curatorJobs.status,
+            totalTokens: schema.curatorJobs.lastTotalTokens,
+          })
+          .from(schema.curatorJobs)
+          .where(inArray(schema.curatorJobs.id, jobIds))
+      : [];
+    const jobById = new Map(jobs.map((j) => [j.id, j]));
     return {
       enrollment: toEnrollmentDto(enrollment),
       context: enrollment.context,
@@ -858,6 +1003,15 @@ export class JourneyRuntimeService {
         input: s.input,
         output: s.output,
         proposalId: s.proposalId,
+        agent:
+          typeof s.output.curatorJobId === 'string' && jobById.has(s.output.curatorJobId)
+            ? {
+                jobId: s.output.curatorJobId,
+                status: jobById.get(s.output.curatorJobId)!.status,
+                totalTokens: jobById.get(s.output.curatorJobId)!.totalTokens,
+                tier: 'fast' as const,
+              }
+            : null,
         startedAt: s.startedAt.toISOString(),
         finishedAt: s.finishedAt?.toISOString() ?? null,
       })),

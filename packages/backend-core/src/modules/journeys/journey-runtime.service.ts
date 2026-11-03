@@ -521,8 +521,8 @@ export class JourneyRuntimeService {
     node: Extract<JourneyNode, { type: 'message' }>,
   ): Promise<Outcome> {
     const previous = await this.stepOutput(step.stepRunId);
-    let content: { subject: string; body: string; format: 'markdown' | 'mjml' } = {
-      subject: node.content.subject,
+    let content: { subject: string | null; body: string; format: 'markdown' | 'mjml' } = {
+      subject: node.content.subject ?? null,
       body: node.content.body,
       format: node.content.format,
     };
@@ -567,9 +567,12 @@ export class JourneyRuntimeService {
       .where(eq(schema.journeys.id, step.enrollment.journeyId))
       .limit(1);
     const settings = step.spec.settings;
+    const sms = node.channel === 'sms';
     const proposal = await this.outreach.proposeJourneyMessage(
       {
         campaignId: journey!.campaignId,
+        channel: node.channel,
+        channelId: sms ? (settings.smsChannelId ?? null) : null,
         contactId,
         enrollmentId: step.enrollment.id,
         stepRunId: step.stepRunId,
@@ -578,8 +581,9 @@ export class JourneyRuntimeService {
         format: content.format,
         templateId: node.content.templateId,
         preheader: node.content.preheader,
-        auto: node.approval === 'auto',
+        auto: !sms && node.approval === 'auto',
         policy: {
+          channel: node.channel,
           class: node.class,
           timezone: settings.timezone,
           quietHours: settings.quietHours,
@@ -603,7 +607,7 @@ export class JourneyRuntimeService {
       .set({ proposalId: proposal.id })
       .where(eq(schema.journeyStepRuns.id, step.stepRunId));
     if (proposal.status === 'sent') {
-      await this.rememberThread(step.enrollment.id, proposal.conversationId);
+      if (!sms) await this.rememberThread(step.enrollment.id, proposal.conversationId);
       return { kind: 'advance', edge: 'next', to: node.next, output: { ...previous, proposalId: proposal.id }, reason: 'sent' };
     }
     if (proposal.status === 'failed') {
@@ -928,6 +932,38 @@ export class JourneyRuntimeService {
     return { accepted: true, written: Object.keys(values) };
   }
 
+  private async repliedStep(enrollmentId: string, conversationId: string): Promise<{ nodeId: string; id: string } | null> {
+    const ctx = getCurrentContext();
+    const r = schema.journeyStepRuns;
+    const p = schema.outreachProposals;
+    const [inThread] = await ctx.db
+      .select({ nodeId: r.nodeId, id: r.id })
+      .from(r)
+      .innerJoin(p, eq(p.journeyStepRunId, r.id))
+      .where(and(eq(r.enrollmentId, enrollmentId), eq(p.conversationId, conversationId)))
+      .orderBy(sql`${p.sentAt} DESC NULLS LAST`)
+      .limit(1);
+    if (inThread) return inThread;
+    const [latest] = await ctx.db
+      .select({ nodeId: r.nodeId, id: r.id })
+      .from(r)
+      .where(and(eq(r.enrollmentId, enrollmentId), eq(r.nodeType, 'message')))
+      .orderBy(desc(r.startedAt))
+      .limit(1);
+    return latest ?? null;
+  }
+
+  private async isSmsThread(enrollmentId: string, conversationId: string): Promise<boolean> {
+    const ctx = getCurrentContext();
+    const p = schema.outreachProposals;
+    const [row] = await ctx.db
+      .select({ id: p.id })
+      .from(p)
+      .where(and(eq(p.journeyEnrollmentId, enrollmentId), eq(p.conversationId, conversationId)))
+      .limit(1);
+    return Boolean(row);
+  }
+
   private async rememberThread(enrollmentId: string, conversationId: string | null): Promise<void> {
     if (!conversationId) return;
     const ctx = getCurrentContext();
@@ -949,7 +985,7 @@ export class JourneyRuntimeService {
       .where(and(eq(w.orgId, row.orgId), eq(w.kind, 'proposal'), isNull(w.resolvedAt), sql`${w.match}->>'proposalId' = ${proposalId}`))
       .limit(1);
     if (!wait) return;
-    if (resolution === 'proposal_sent' && typeof row.payload.conversationId === 'string') {
+    if (resolution === 'proposal_sent' && typeof row.payload.conversationId === 'string' && row.payload.channel !== 'sms') {
       await this.rememberThread(wait.enrollmentId, row.payload.conversationId);
     }
     await this.resolveWait(wait, resolution);
@@ -961,14 +997,10 @@ export class JourneyRuntimeService {
     if (row.payload.autoReply === true) return;
     const ctx = getCurrentContext();
     for (const enrollment of enrollments) {
-      if (enrollment.conversationId !== conversationId || !isOpen(enrollment.state)) continue;
+      if (!isOpen(enrollment.state)) continue;
+      if (enrollment.conversationId !== conversationId && !(await this.isSmsThread(enrollment.id, conversationId))) continue;
       const spec = await this.spec(enrollment.journeyId, enrollment.version);
-      const [lastMessage] = await ctx.db
-        .select({ nodeId: schema.journeyStepRuns.nodeId, id: schema.journeyStepRuns.id })
-        .from(schema.journeyStepRuns)
-        .where(and(eq(schema.journeyStepRuns.enrollmentId, enrollment.id), eq(schema.journeyStepRuns.nodeType, 'message')))
-        .orderBy(desc(schema.journeyStepRuns.startedAt))
-        .limit(1);
+      const lastMessage = await this.repliedStep(enrollment.id, conversationId);
       if (!lastMessage) continue;
       const node = spec.nodes.find((n) => n.id === lastMessage.nodeId);
       const reply = { conversationId, messageId: row.payload.messageId ?? null, eventId: row.eventId };
@@ -1311,7 +1343,12 @@ export class JourneyRuntimeService {
     const matches: SQL[] = [];
     if (subject.contactId) matches.push(eq(e.contactId, subject.contactId));
     if (subject.endUserId) matches.push(eq(e.endUserId, subject.endUserId));
-    if (typeof payload.conversationId === 'string') matches.push(eq(e.conversationId, payload.conversationId));
+    if (typeof payload.conversationId === 'string') {
+      matches.push(eq(e.conversationId, payload.conversationId));
+      matches.push(
+        sql`EXISTS (SELECT 1 FROM ${schema.outreachProposals} p WHERE p.journey_enrollment_id = ${e.id} AND p.conversation_id = ${payload.conversationId})`,
+      );
+    }
     if (matches.length === 0) return [];
     return ctx.db
       .select()

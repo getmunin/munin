@@ -37,6 +37,8 @@ export type Weekday = (typeof WEEKDAYS)[number];
 
 export const MESSAGE_APPROVAL_MODES = ['draft_only', 'auto', 'off'] as const;
 export const MESSAGE_CLASSES = ['marketing', 'transactional'] as const;
+export const MESSAGE_CHANNELS = ['email', 'sms'] as const;
+export const JOURNEY_SMS_MAX_CHARS = 480;
 export const REENTRY_POLICIES = ['once', 'once_at_a_time'] as const;
 export const CONDITION_OPERATORS = [
   'eq',
@@ -123,10 +125,10 @@ const NodeBase = { id: NodeId, label: z.string().max(120).optional() };
 export const MessageNodeSchema = z.strictObject({
   ...NodeBase,
   type: z.literal('message'),
-  channel: z.literal('email'),
+  channel: z.enum(MESSAGE_CHANNELS).default('email'),
   class: z.enum(MESSAGE_CLASSES).default('marketing'),
   content: z.strictObject({
-    subject: z.string().min(1).max(300),
+    subject: z.string().min(1).max(300).optional(),
     preheader: z.string().max(300).optional(),
     format: z.enum(['markdown', 'mjml']).default('markdown'),
     body: z.string().min(1).max(100_000),
@@ -314,6 +316,7 @@ export const JourneySettingsSchema = z.strictObject({
   frequencyCapPerWeek: z.number().int().min(1).max(50).optional(),
   cooldownHoursAfterConversation: z.number().int().min(0).max(720).default(24),
   maxVisitsPerNode: z.number().int().min(1).max(20).default(3),
+  smsChannelId: z.string().min(1).max(64).optional(),
 });
 
 export const JourneySpecSchema = z.strictObject({

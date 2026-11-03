@@ -96,7 +96,7 @@ export class JourneysTools {
     name: 'journeys_list_templates',
     title: 'Journeys: List templates',
     description:
-      'Starter journey templates (inbound lead, trial onboarding, webinar, win-back, satisfaction after a conversation, sunset unengaged — each in nb, sv and en) and the org\'s own saved templates, with the parameters each needs. Filter by locale.',
+      'Starter journey templates (inbound lead, trial onboarding, webinar, win-back, satisfaction after a conversation, sunset unengaged, booking reminder — each in nb, sv and en) and the org\'s own saved templates, with the parameters each needs. Filter by locale.',
     audiences: ['admin'],
     scopes: ['journeys:read'],
     input: z.object({ locale: z.string().min(2).max(10).optional() }),

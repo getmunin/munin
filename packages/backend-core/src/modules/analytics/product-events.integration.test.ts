@@ -8,7 +8,7 @@ import {
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { ProductEventsService } from './product-events.service.ts';
 import { IdentityService } from '../identity/identity.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
@@ -42,8 +42,8 @@ const skipReason = TEST_URL
     otherOrgId = other!.id;
     agent = new ActorIdentity('admin_agent', 'agt_events_test', orgId, ['*'], ['admin']);
     const webhooks = new WebhookDispatcher();
-    svc = new ProductEventsService(webhooks, new IdentityService(webhooks));
     crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
+    svc = new ProductEventsService(webhooks, new IdentityService(webhooks), crm);
   });
 
   afterAll(async () => {
@@ -58,6 +58,7 @@ const skipReason = TEST_URL
     for (const table of [
       'analytics_product_events',
       'events',
+      'crm_activities',
       'crm_segments',
       'crm_contacts',
       'end_users',
@@ -238,6 +239,127 @@ const skipReason = TEST_URL
       return crm.listContactsInSegment({ id: segment.id });
     });
     expect(members.map((m) => m.id)).toEqual([kari.id]);
+  });
+
+  describe('consent recorded with the event', () => {
+    const consent = { lawfulBasis: 'contract' as const, source: 'trial-signup' };
+
+    it('creates the contact for an email Munin has never seen and records the lawful basis before the event is emitted', async () => {
+      const occurredAt = new Date(Date.now() - 60_000).toISOString();
+      const [result] = await asAgent(() =>
+        svc.record([
+          {
+            id: 'signup-1',
+            name: 'trial.started',
+            occurredAt,
+            identity: { email: 'Kari@Acme.test', externalId: 'acct-1' },
+            consent: { ...consent, evidence: { form: 'signup' } },
+          },
+        ]),
+      );
+      expect(result).toMatchObject({ status: 'recorded', consent: 'recorded' });
+      expect(result!.contactId).not.toBeNull();
+
+      const [row] = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, result!.contactId!));
+      expect(row).toMatchObject({
+        email: 'kari@acme.test',
+        endUserId: result!.endUserId,
+        consentLawfulBasis: 'contract',
+        consentSource: 'trial-signup',
+        consentEvidence: { form: 'signup', productEvent: { id: 'signup-1', name: 'trial.started' } },
+      });
+      expect(row!.consentGivenAt!.toISOString()).toBe(occurredAt);
+
+      const [emitted] = await db
+        .select()
+        .from(schema.events)
+        .where(and(eq(schema.events.orgId, orgId), eq(schema.events.type, 'analytics.product_event.recorded')));
+      expect(emitted!.payload).toMatchObject({ contactId: result!.contactId });
+      const activities = await db
+        .select()
+        .from(schema.crmActivities)
+        .where(eq(schema.crmActivities.contactId, result!.contactId!));
+      expect(activities.map((a) => a.subject)).toContain('Consent recorded');
+    });
+
+    it('keeps a lawful basis that is already recorded', async () => {
+      const kari = await contact({ name: 'Kari Nordmann', email: 'kari@acme.test' });
+      await db.update(schema.crmContacts).set({ consentLawfulBasis: 'consent', consentSource: 'newsletter' }).where(eq(schema.crmContacts.id, kari.id));
+      const [result] = await asAgent(() =>
+        svc.record([{ id: 'signup-2', name: 'trial.started', identity: { email: 'kari@acme.test' }, consent }]),
+      );
+      expect(result).toMatchObject({ contactId: kari.id, consent: 'kept' });
+      const [row] = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, kari.id));
+      expect(row).toMatchObject({ consentLawfulBasis: 'consent', consentSource: 'newsletter' });
+    });
+
+    it('records a basis for an unsubscribed contact without lifting the unsubscribe', async () => {
+      const unsubscribedAt = new Date('2026-01-01T00:00:00Z');
+      const [ola] = await db
+        .insert(schema.crmContacts)
+        .values({ orgId, name: 'Ola Nordmann', email: 'ola@acme.test', unsubscribedAt, doNotContact: true })
+        .returning();
+      const [result] = await asAgent(() =>
+        svc.record([{ id: 'signup-3', name: 'trial.started', identity: { contactId: ola!.id }, consent }]),
+      );
+      expect(result).toMatchObject({ contactId: ola!.id, consent: 'recorded' });
+      const [row] = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, ola!.id));
+      expect(row).toMatchObject({ consentLawfulBasis: 'contract', doNotContact: true, unsubscribedAt });
+    });
+
+    it('does not record consent again for a retried event', async () => {
+      const event = { id: 'signup-4', name: 'trial.started', identity: { email: 'per@acme.test' }, consent };
+      const [first] = await asAgent(() => svc.record([event]));
+      const [second] = await asAgent(() => svc.record([event]));
+      expect(first).toMatchObject({ status: 'recorded', consent: 'recorded' });
+      expect(second).toMatchObject({ status: 'duplicate', contactId: first!.contactId });
+      expect(second!.consent).toBeUndefined();
+      const contacts = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.orgId, orgId));
+      expect(contacts).toHaveLength(1);
+    });
+
+    it('refuses consent from a key without crm:write and records nothing', async () => {
+      const eventsOnly = new ActorIdentity('admin_agent', 'agt_events_only', orgId, ['analytics:write'], ['admin']);
+      await expect(
+        runAs(eventsOnly, () =>
+          svc.record([{ id: 'signup-5', name: 'trial.started', identity: { email: 'liv@acme.test' }, consent }]),
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      const both = new ActorIdentity('admin_agent', 'agt_events_crm', orgId, ['analytics:write', 'crm:write'], ['admin']);
+      const [result] = await runAs(both, () =>
+        svc.record([{ id: 'signup-5', name: 'trial.started', identity: { email: 'liv@acme.test' }, consent }]),
+      );
+      expect(result).toMatchObject({ status: 'recorded', consent: 'recorded' });
+    });
+
+    it('refuses consent it cannot attach to a person', async () => {
+      await expect(
+        asAgent(() =>
+          svc.record([{ id: 'signup-6', name: 'trial.started', identity: { externalId: 'acct-6' }, consent }]),
+        ),
+      ).rejects.toThrow(/no email to create one with/);
+      await expect(
+        asAgent(() =>
+          svc.record([
+            { id: 'signup-7', name: 'trial.started', identity: { email: 'nils@acme.test', verified: false }, consent },
+          ]),
+        ),
+      ).rejects.toThrow(/not verified/);
+      await expect(
+        asAgent(() =>
+          svc.record([
+            {
+              id: 'signup-8',
+              name: 'trial.started',
+              identity: { email: 'siri@acme.test' },
+              consent: { ...consent, givenAt: new Date(Date.now() + 3_600_000).toISOString() },
+            },
+          ]),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      const contacts = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.orgId, orgId));
+      expect(contacts).toHaveLength(0);
+    });
   });
 
   it('refuses to delete a segment that a broadcast still references', async () => {

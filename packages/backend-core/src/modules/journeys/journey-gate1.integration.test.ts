@@ -110,7 +110,7 @@ function playbookSpec(segmentId: string): Record<string, unknown> {
     runtime = new JourneyRuntimeService(webhooks, crm, new JourneyOutboxService(outreach, webhooks, conv, crm, email, new AlertsService(webhooks)), new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
     worker = new JourneyRuntimeWorker(appDb, runtime);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
-    events = new ProductEventsService(webhooks, new IdentityService(webhooks));
+    events = new ProductEventsService(webhooks, new IdentityService(webhooks), new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService()));
   });
 
   afterAll(async () => {
@@ -280,5 +280,51 @@ function playbookSpec(segmentId: string): Record<string, unknown> {
     expect(sent.length).toBeGreaterThan(0);
     expect(sent.every((s) => s.decidedBy === 'system')).toBe(true);
     expect(new Set(sent.map((s) => s.stepRunId)).size).toBe(sent.length);
+  });
+
+  it('welcomes a trial user Munin has never seen when the sign-up sync records the lawful basis with trial.started', async () => {
+    const [segment] = await db
+      .insert(schema.crmSegments)
+      .values({
+        orgId,
+        name: 'New trialists',
+        filterDefinition: { events: [{ name: 'trial.started', occurred: true }] },
+        createdByActorType: 'user',
+        createdByActorId: userId,
+      })
+      .returning();
+    const [channel] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'email', vendor: 'smtp', name: 'signup mail', active: true, config: { addressing: { fromAddress: 'hei@acme.test' } } })
+      .returning();
+    const spec = playbookSpec(segment!.id) as { settings: Record<string, unknown> };
+    spec.settings.holdoutPct = 0;
+    const journey = await asAgent(() =>
+      journeys.create({ name: 'Sign-up onboarding', senderChannelId: channel!.id, spec }),
+    );
+    const request = await asAgent(() => publishing.requestPublish(journey.id));
+    await runAs(person, () => publishing.confirmPublish(journey.id, 1, request.fingerprint));
+
+    const signupKey = new ActorIdentity('admin_agent', 'agt_signup_sync', orgId, ['analytics:write', 'crm:write'], ['admin']);
+    const [result] = await runAs(signupKey, () =>
+      events.record([
+        {
+          id: randomUUID(),
+          name: 'trial.started',
+          identity: { email: 'astrid@kunde.test', externalId: 'acct-astrid' },
+          consent: { lawfulBasis: 'contract', source: 'trial-signup' },
+        },
+      ]),
+    );
+    expect(result).toMatchObject({ status: 'recorded', consent: 'recorded' });
+    for (let i = 0; i < 4; i++) await worker.tick();
+
+    const [run] = await db.select().from(schema.journeyEnrollments).where(eq(schema.journeyEnrollments.journeyId, journey.id));
+    expect(run).toMatchObject({ contactId: result!.contactId, holdout: false });
+    const welcome = await db
+      .select({ status: schema.outreachProposals.status, decidedBy: schema.outreachProposals.decidedByActorType })
+      .from(schema.outreachProposals)
+      .where(sql`${schema.outreachProposals.journeyId} = ${journey.id} AND ${schema.outreachProposals.contactId} = ${result!.contactId}`);
+    expect(welcome).toEqual([{ status: 'sent', decidedBy: 'system' }]);
   });
 });

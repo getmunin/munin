@@ -16,6 +16,7 @@ import {
   ProductEventsService,
   type ProductEventResult,
 } from '../modules/analytics/product-events.service.ts';
+import { CONSENT_LAWFUL_BASES } from '../modules/crm/crm.service.ts';
 
 const ProductEventSchema = z.object({
   id: z.string().min(1).max(128),
@@ -28,6 +29,14 @@ const ProductEventSchema = z.object({
     phone: z.string().min(3).max(32).optional(),
   }),
   properties: z.record(z.string(), z.unknown()).optional(),
+  consent: z
+    .object({
+      lawfulBasis: z.enum(CONSENT_LAWFUL_BASES),
+      source: z.string().min(1).max(64),
+      givenAt: z.string().datetime({ offset: true }).optional(),
+      evidence: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional(),
 });
 
 export const PRODUCT_EVENTS_PER_MINUTE = 3_000;

@@ -155,10 +155,10 @@ function checkNode(
           errors.push({ code: 'agent_draft_brief', nodeId: node.id, message: 'an agent-drafted email needs a brief' });
         }
         if (node.approval === 'auto') {
-          errors.push({
+          warnings.push({
             code: 'agent_draft_auto',
             nodeId: node.id,
-            message: 'agent-drafted emails are reviewed until the step has earned auto; keep approval draft_only',
+            message: 'an agent-drafted step can be published with auto only once it has 30 reviewed drafts in 30 days with at least 90% approved unedited',
           });
         }
       }

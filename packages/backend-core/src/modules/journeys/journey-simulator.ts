@@ -129,7 +129,7 @@ export class JourneySimulator {
     switch (node.type) {
       case 'message': {
         if (node.approval === 'off') return { edge: 'next', to: node.next };
-        if (contact.kind === 'company') return { exit: 'no_contact' };
+        if (contact.kind === 'company') return this.companyStep(node, spec, contact, now, assumptions);
         const settings = spec.settings;
         const decision = await checkSendPolicy({
           contactId: contact.id,
@@ -225,6 +225,49 @@ export class JourneySimulator {
       default:
         return { exit: 'node_type_unavailable' };
     }
+  }
+
+  private async companyStep(
+    node: Extract<JourneyNode, { type: 'message' }>,
+    spec: JourneySpec,
+    company: SampleContact,
+    now: Date,
+    assumptions: Map<string, SimulationAssumption>,
+  ): Promise<{ edge?: string; to?: string; exit?: string; message?: SimulatedMessage }> {
+    const recipients = await this.runtime.companyRecipients(company.id, node.recipients);
+    if (recipients.length === 0) return { exit: 'no_recipients' };
+    const settings = spec.settings;
+    let reached = false;
+    let first: SimulatedMessage | undefined;
+    for (const contactId of recipients) {
+      const decision = await checkSendPolicy({
+        contactId,
+        now,
+        policy: {
+          channel: node.channel,
+          class: node.class,
+          timezone: settings.timezone,
+          quietHours: settings.quietHours,
+          validDays: settings.validDays,
+          frequencyCapPerWeek: settings.frequencyCapPerWeek,
+          cooldownHoursAfterConversation: settings.cooldownHoursAfterConversation,
+        },
+      });
+      if (decision.decision !== 'skip') reached = true;
+      first ??= {
+        nodeId: node.id,
+        contactId,
+        contactName: company.name,
+        channel: node.channel,
+        subject: node.content.subject ?? null,
+        ...(node.channel === 'sms' || node.channel === 'chat' ? { body: node.content.body } : {}),
+        decision: decision.decision,
+        reason: decision.decision === 'send' ? null : decision.reason,
+      };
+    }
+    if (node.approval === 'draft_only') assumptions.set(`approve:${node.id}`, { code: 'reviewer_approves', nodeId: node.id });
+    if (!reached) return { exit: 'message_blocked', message: first };
+    return { edge: 'next', to: node.next, message: first };
   }
 
   private async entryBlock(journeyId: string, spec: JourneySpec, contact: SampleContact): Promise<string | null> {

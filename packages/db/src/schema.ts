@@ -2182,8 +2182,8 @@ export const outreachProposals = pgTable(
     openPairUq: uniqueIndex('outreach_proposals_open_pair_uq')
       .on(t.campaignId, t.contactId, t.kind)
       .where(sql`status IN ('pending', 'approved') AND kind <> 'journey'`),
-    journeyStepUq: uniqueIndex('outreach_proposals_journey_step_uq')
-      .on(t.journeyStepRunId)
+    journeyStepUq: uniqueIndex('outreach_proposals_journey_step_contact_uq')
+      .on(t.journeyStepRunId, t.contactId)
       .where(sql`journey_step_run_id IS NOT NULL`),
   }),
 );

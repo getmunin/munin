@@ -466,6 +466,8 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
 
 function EnrollmentTable({ enrollments, onOpen }: { enrollments: EnrollmentDto[]; onOpen: (id: string) => void }) {
   const t = useTranslations('dashboard.journeys.people');
+  const labels = useRunLabels();
+  const byCompany = enrollments.some((e) => e.companyId && !e.contactId);
   const format = useFormatter();
   const now = useNow();
   return (
@@ -473,7 +475,7 @@ function EnrollmentTable({ enrollments, onOpen }: { enrollments: EnrollmentDto[]
       <table className="w-full">
         <thead>
           <tr className="border-b-[1px] border-rule-soft text-left dark:border-rule-on-dark">
-            <Th>{t('person')}</Th>
+            <Th>{t(byCompany ? 'company' : 'person')}</Th>
             <Th>{t('state')}</Th>
             <Th>{t('where')}</Th>
             <Th>{t('entered')}</Th>
@@ -490,8 +492,10 @@ function EnrollmentTable({ enrollments, onOpen }: { enrollments: EnrollmentDto[]
                 {e.contactName ?? e.contactEmail ?? e.companyName ?? e.contactId ?? e.companyId ?? e.endUserId}
                 {e.holdout && <span className="ml-2 text-ink-mute">{t('holdout')}</span>}
               </td>
-              <td className="py-3 pr-4 font-mono text-xs text-ink-mute">{e.state}</td>
-              <td className="py-3 pr-4 font-mono text-xs text-ink-mute">{e.exitReason ?? e.currentNode ?? '—'}</td>
+              <td className="py-3 pr-4 font-mono text-xs text-ink-mute">{labels.state(e.state)}</td>
+              <td className="py-3 pr-4 font-mono text-xs text-ink-mute">
+                {e.exitReason ? labels.reason(e.exitReason) : (e.currentNode ?? '—')}
+              </td>
               <td className="py-3 pr-4 font-mono text-xs text-ink-mute">
                 {format.relativeTime(new Date(e.enteredAt), now)}
               </td>
@@ -505,6 +509,7 @@ function EnrollmentTable({ enrollments, onOpen }: { enrollments: EnrollmentDto[]
 
 function TraceSheet({ enrollmentId, onClose }: { enrollmentId: string | null; onClose: () => void }) {
   const t = useTranslations('dashboard.journeys.trace');
+  const labels = useRunLabels();
   const format = useFormatter();
   const [trace, setTrace] = useState<TraceDto | null>(null);
   useEffect(() => {
@@ -562,7 +567,7 @@ function TraceSheet({ enrollmentId, onClose }: { enrollmentId: string | null; on
             ))}
             {trace.enrollment.exitReason && (
               <li className="pl-3 font-mono text-xs text-ink dark:text-foreground">
-                {t('ended', { reason: trace.enrollment.exitReason })}
+                {t('ended', { reason: labels.reason(trace.enrollment.exitReason) })}
               </li>
             )}
           </ol>
@@ -581,6 +586,7 @@ function ReportView({
   reviewStats: NodeReviewStatsDto[];
   agentStats: AgentNodeStatsDto[];
 }) {
+  const labels = useRunLabels();
   const t = useTranslations('dashboard.journeys.report');
   const pct = (v: number | null) => (v === null ? '—' : `${(v * 100).toFixed(1)} %`);
   return (
@@ -613,7 +619,7 @@ function ReportView({
         </h3>
         <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
           {Object.entries(report.enrollments.exitReasons).map(([reason, n]) => (
-            <StatRow key={reason} label={reason} value={n} />
+            <StatRow key={reason} label={labels.reason(reason)} value={n} />
           ))}
         </dl>
       </section>
@@ -775,6 +781,14 @@ function VersionList({
       ))}
     </ol>
   );
+}
+
+function useRunLabels() {
+  const t = useTranslations('dashboard.journeys');
+  return {
+    state: (state: string) => (t.has(`runState.${state}`) ? t(`runState.${state}` as never) : state),
+    reason: (reason: string) => (t.has(`exitReason.${reason}`) ? t(`exitReason.${reason}` as never) : reason),
+  };
 }
 
 function StatusPill({ status }: { status: JourneyStatus }) {

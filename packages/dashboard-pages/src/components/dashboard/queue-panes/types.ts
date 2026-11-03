@@ -153,7 +153,7 @@ export interface OutreachProposalDto {
   campaignId: string;
   contactId: string;
   conversationId: string | null;
-  kind: 'initial' | 'reply' | 'followup';
+  kind: 'initial' | 'reply' | 'followup' | 'journey';
   sequenceStep?: number | null;
   draftSubject: string | null;
   draftBody: string;

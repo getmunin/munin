@@ -2135,6 +2135,8 @@ export const outreachProposals = pgTable(
     kind: varchar('kind', { length: 16 }).notNull(),
     // 'initial' | 'reply' | 'followup'
     sequenceStep: integer('sequence_step'),
+    journeyEnrollmentId: text('journey_enrollment_id'),
+    journeyStepRunId: text('journey_step_run_id'),
     draftSubject: text('draft_subject'),
     draftBody: text('draft_body').notNull(),
     originalDraftBody: text('original_draft_body'),
@@ -2179,6 +2181,9 @@ export const outreachProposals = pgTable(
     openPairUq: uniqueIndex('outreach_proposals_open_pair_uq')
       .on(t.campaignId, t.contactId, t.kind)
       .where(sql`status IN ('pending', 'approved')`),
+    journeyStepUq: uniqueIndex('outreach_proposals_journey_step_uq')
+      .on(t.journeyStepRunId)
+      .where(sql`journey_step_run_id IS NOT NULL`),
   }),
 );
 

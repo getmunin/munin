@@ -17,6 +17,7 @@ export class SlackEventSink implements EventSink {
     const isAnnouncement = SLACK_ANNOUNCEMENT_EVENT_TYPES.includes(event.type);
     if (!isApproval && !isAnnouncement && !SLACK_MIRRORED_EVENT_TYPES.includes(event.type)) return;
     if (event.payload.autoReply === true) return;
+    if (event.payload.autoApproved === true) return;
     const ctx = getCurrentContext();
     const [integration] = await ctx.db
       .select({ id: schema.slackIntegrations.id })

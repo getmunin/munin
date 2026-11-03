@@ -68,6 +68,8 @@ Behavior:
 - **Dismissing a follow-up permanently stops the sequence for that contact.** Operators who dislike the wording should edit-then-approve instead. Write drafts worth editing, not dismissing.
 - **Withdrawing one does not stop the sequence.** If *you* filed a follow-up you shouldn't have, `outreach_withdraw_proposal({ id, reason })` retracts it and leaves the step eligible again — that is the difference from dismiss, and the reason to never use dismiss to tidy up your own drafts.
 
+Campaigns run by a journey never appear in the due list; their follow-ups are journey steps. Filing one anyway is refused with `outreach_journey_managed`.
+
 ## What NOT to do
 
 - **Don't auto-send.** No `conv_send_message` from this skill. Drafts only.

@@ -30,6 +30,22 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       .values({ orgId, name: 'Kari Nordmann', email: 'kari@kunde.test', consentLawfulBasis: 'contract' })
       .returning();
     contactId = contact!.id;
+    const [channel] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'email', vendor: 'smtp', name: 'mail', active: true, config: {} })
+      .returning();
+    const [campaign] = await db
+      .insert(schema.outreachCampaigns)
+      .values({ orgId, name: 'Bookings', brief: 'Booking follow-up', channelId: channel!.id, createdByActorType: 'user', createdByActorId: 'usr_1' })
+      .returning();
+    await db.insert(schema.journeys).values({
+      orgId,
+      name: 'Booking follow-up',
+      status: 'live',
+      outreachCampaignId: campaign!.id,
+      createdByActorType: 'user',
+      createdByActorId: 'usr_1',
+    });
     appDb = createDb(TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@'));
     const webhooks = new WebhookDispatcher();
     webhooks.registerSink(new JourneyEventSink());
@@ -39,7 +55,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
   afterAll(async () => {
     if (!db) return;
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-    for (const table of ['journey_event_inbox', 'analytics_product_events', 'events', 'crm_contacts', 'end_users']) {
+    for (const table of ['journey_event_inbox', 'journeys', 'outreach_campaigns', 'conv_channels', 'analytics_product_events', 'events', 'crm_contacts', 'end_users']) {
       await db.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE org_id = ${orgId}`);
     }
     await db.delete(schema.orgs).where(eq(schema.orgs.id, orgId));

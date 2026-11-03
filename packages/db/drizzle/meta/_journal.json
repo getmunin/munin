@@ -988,6 +988,13 @@
       "when": 1793134350267,
       "tag": "0140_proposal_journey_delivery",
       "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1793134410267,
+      "tag": "0141_journey_runtime_hardening",
+      "breakpoints": true
     }
   ]
 }

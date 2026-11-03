@@ -16,7 +16,7 @@ export interface ConditionFacts {
 }
 
 export interface ConditionNeeds {
-  eventNames: Set<string>;
+  events: Map<string, number>;
   segmentIds: Set<string>;
 }
 
@@ -46,12 +46,12 @@ export function evaluateCondition(cond: JourneyCondition, facts: ConditionFacts)
 
 export function collectConditionNeeds(
   cond: JourneyCondition,
-  needs: ConditionNeeds = { eventNames: new Set(), segmentIds: new Set() },
+  needs: ConditionNeeds = { events: new Map(), segmentIds: new Set() },
 ): ConditionNeeds {
   if ('all' in cond) cond.all.forEach((c) => collectConditionNeeds(c, needs));
   else if ('any' in cond) cond.any.forEach((c) => collectConditionNeeds(c, needs));
   else if ('not' in cond) collectConditionNeeds(cond.not, needs);
-  else if ('event' in cond) needs.eventNames.add(cond.event);
+  else if ('event' in cond) needs.events.set(cond.event, Math.max(needs.events.get(cond.event) ?? 0, cond.minCount ?? 1));
   else if ('segment' in cond) needs.segmentIds.add(cond.segment);
   return needs;
 }

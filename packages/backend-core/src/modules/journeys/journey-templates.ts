@@ -321,6 +321,51 @@ const DEFS: TemplateDef[] = [
       ],
     }),
   },
+  {
+    slug: 'booking-reminder',
+    tags: ['hospitality', 'booking'],
+    params: [{ ...SEGMENT, description: 'Segment of guests who may enter (crm_list_segments), for example everyone with a recorded lawful basis.' }],
+    text: {
+      en: {
+        title: 'Booking reminder and thank-you',
+        description: 'When a guest books through Munin: a reminder the day before, a thank-you after the visit, and the run ends if they cancel. The next booking within 90 days counts as the goal.',
+        copy: {
+          remind: { subject: 'See you tomorrow', body: 'Hi {{name}}, a reminder that we look forward to seeing you tomorrow. Reply if anything changes.' },
+          thanks: { subject: 'Thanks for visiting', body: 'Hi {{name}}, thank you for coming. We would love to see you again — reply if there is anything we can do better.' },
+        },
+      },
+      nb: {
+        title: 'Bookingpåminnelse og takk',
+        description: 'Når en gjest booker gjennom Munin: en påminnelse dagen før, en takk etter besøket, og løpet avsluttes hvis de kansellerer. Neste booking innen 90 dager teller som mål.',
+        copy: {
+          remind: { subject: 'Vi ses i morgen', body: 'Hei {{name}}, en påminnelse om at vi gleder oss til å se deg i morgen. Svar gjerne om noe endrer seg.' },
+          thanks: { subject: 'Takk for besøket', body: 'Hei {{name}}, takk for at du kom. Vi ses gjerne igjen — svar om det er noe vi kan gjøre bedre.' },
+        },
+      },
+      sv: {
+        title: 'Bokningspåminnelse och tack',
+        description: 'När en gäst bokar via Munin: en påminnelse dagen innan, ett tack efter besöket, och flödet avslutas om de avbokar. Nästa bokning inom 90 dagar räknas som mål.',
+        copy: {
+          remind: { subject: 'Vi ses i morgon', body: 'Hej {{name}}, en påminnelse om att vi ser fram emot att träffa dig i morgon. Svara gärna om något ändras.' },
+          thanks: { subject: 'Tack för besöket', body: 'Hej {{name}}, tack för att du kom. Vi ses gärna igen — svara om det är något vi kan göra bättre.' },
+        },
+      },
+    },
+    spec: (copy, locale) => ({
+      entry: { trigger: { type: 'event', event: 'booking.created' }, segmentId: '{{param:segmentId}}', reentry: 'once_at_a_time' },
+      exit: { on: [{ event: 'booking.cancelled' }] },
+      goal: { event: 'booking.created', windowDays: 90 },
+      settings: settings(locale),
+      start: 'before',
+      nodes: [
+        { id: 'before', type: 'wait', untilField: { field: 'context.trigger.properties.startsAt', offset: '-P1D' }, next: 'remind' },
+        email('remind', copy, { class: 'transactional', next: 'after' }),
+        { id: 'after', type: 'wait', untilField: { field: 'context.trigger.properties.startsAt', offset: 'PT3H' }, next: 'thanks' },
+        email('thanks', copy, { next: 'done' }),
+        { id: 'done', type: 'exit' },
+      ],
+    }),
+  },
 ];
 
 export const BUILT_IN_TEMPLATES: readonly JourneyTemplate[] = DEFS.flatMap((def) =>

@@ -883,6 +883,13 @@
       "when": 1793133450267,
       "tag": "0125_outreach_journey_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1793133510267,
+      "tag": "0126_journey_templates",
+      "breakpoints": true
     }
   ]
 }

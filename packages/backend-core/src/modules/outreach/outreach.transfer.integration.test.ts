@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -148,15 +148,20 @@ const skipReason = TEST_URL
             channelId: channel.id,
             autoDraftFirstTouch: true,
             autoDraftReplies: false,
-            sequenceSteps: [
-              { waitDays: 3, brief: 'gentle bump' },
-              { waitDays: 7, brief: 'breakup email' },
-            ],
           },
         })),
       ) as { id: string };
       return { channel, segment, contact, campaign };
     });
+    await db
+      .update(schema.outreachCampaigns)
+      .set({
+        sequenceSteps: [
+          { waitDays: 3, brief: 'gentle bump' },
+          { waitDays: 7, brief: 'breakup email' },
+        ],
+      })
+      .where(eq(schema.outreachCampaigns.id, seeded.campaign.id));
 
     await db.insert(schema.outreachProposals).values([
       {

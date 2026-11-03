@@ -36,21 +36,9 @@ const CadenceRulesSchema = z.object({
   blackoutDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(50).optional(),
 });
 
-const SequenceStepSchema = z.object({
-  waitDays: z
-    .number()
-    .int()
-    .min(1)
-    .max(90)
-    .describe('Days to wait after the previous outbound with no reply before this step is due.'),
-  brief: z
-    .string()
-    .min(1)
-    .max(2000)
-    .describe('Goal/angle for this step, e.g. "gentle bump" or "share a relevant case study".'),
-});
-
-const SequenceStepsSchema = z.array(SequenceStepSchema).max(5);
+const SequenceStepsSchema = z
+  .array(z.object({ waitDays: z.number().int().min(1).max(90), brief: z.string().min(1).max(2000) }))
+  .max(5);
 
 const ExtractionFieldSchema = z.object({
   key: z
@@ -92,7 +80,6 @@ const CreateCampaignInput = z.object({
   segmentId: z.string().min(1).max(64),
   channelId: z.string().min(1).max(64),
   cadenceRules: CadenceRulesSchema.optional(),
-  sequenceSteps: SequenceStepsSchema.optional(),
   extractionSchema: ExtractionSchemaSchema.optional(),
   ctaUrl: z.string().url().nullable().optional(),
   enabled: z.boolean().optional(),
@@ -111,7 +98,6 @@ const UpdateCampaignInput = z.object({
       segmentId: z.string().min(1).max(64).optional(),
       channelId: z.string().min(1).max(64).optional(),
       cadenceRules: CadenceRulesSchema.optional(),
-      sequenceSteps: SequenceStepsSchema.optional(),
       extractionSchema: ExtractionSchemaSchema.optional(),
       ctaUrl: z.string().url().nullable().optional(),
       enabled: z.boolean().optional(),
@@ -166,23 +152,6 @@ const ProposeReplyInput = z.object({
   conversationId: z.string().min(1).max(64),
   draftBody: z.string().min(1).max(20_000),
   evidence: z.record(z.string(), z.unknown()).optional(),
-});
-
-const ProposeFollowupInput = z.object({
-  conversationId: z.string().min(1).max(64),
-  step: z
-    .number()
-    .int()
-    .min(1)
-    .max(5)
-    .describe('1-based sequence step to file — must be the next step for this conversation.'),
-  draftBody: z.string().min(1).max(20_000),
-  evidence: z.record(z.string(), z.unknown()).optional(),
-});
-
-const ListDueFollowupsInput = z.object({
-  campaignId: z.string().min(1).max(64).optional(),
-  limit: z.number().int().positive().max(200).optional(),
 });
 
 const EmptyInput = z.object({});
@@ -293,7 +262,7 @@ export class OutreachAdminTools {
     name: 'outreach_list_campaigns',
     title: 'Outreach: List campaigns',
     description:
-      'List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (ordered follow-up steps drafted by the daily curator when the campaign is enabled; empty means no sequence), `extractionSchema` (the fields an outcome pass writes to each contact after a call on this campaign ends or a prospect replies; empty means no extraction runs), CTA URL, the enabled flag, and the automation flags: `autoDraftFirstTouch` (the weekly curator drafts first-touch emails only when true), `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true), and `autoCurateEdits` (a human editing a draft before approving it feeds a KB curation pass only when true). The weekly first-touch curator only drafts proposals for `enabled = true` campaigns with `autoDraftFirstTouch = true`. `journeyId` names the journey that sends through a campaign; such a campaign has no segment of its own when the journey created it, and its own first touches and follow-ups stop while the journey is published.',
+      'List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (follow-up steps defined before campaign sequences were retired; nothing drafts them any more, and a journey created from the campaign carries them over), `extractionSchema` (the fields an outcome pass writes to each contact after a call on this campaign ends or a prospect replies; empty means no extraction runs), CTA URL, the enabled flag, and the automation flags: `autoDraftFirstTouch` (the weekly curator drafts first-touch emails only when true), `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true), and `autoCurateEdits` (a human editing a draft before approving it feeds a KB curation pass only when true). The weekly first-touch curator only drafts proposals for `enabled = true` campaigns with `autoDraftFirstTouch = true`. `journeyId` names the journey that sends through a campaign; such a campaign has no segment of its own when the journey created it, and its own first touches stop while the journey is published.',
     audiences: ['admin'],
     scopes: ['outreach:read'],
     input: EmptyInput,
@@ -322,7 +291,7 @@ export class OutreachAdminTools {
     name: 'outreach_create_campaign',
     title: 'Outreach: Create campaign',
     description:
-      'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftFirstTouch` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review), and `autoCurateEdits` defaults false (when true, a proposal a human edited before approving queues a KB curation pass over what they changed — leave it off unless edits on this campaign tend to correct facts rather than personalise copy). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `sequenceSteps` (email campaigns only) defines a follow-up sequence — each step is a wait period plus a drafting brief; defining steps on an enabled campaign opts it into daily follow-up drafting for threads with no reply. Optional `extractionSchema` declares up to 12 fields to pull out of whatever the prospect says back — on a voice campaign when the call ends, on an email or SMS campaign each time they reply. A background pass reads the transcript or the reply and writes what they actually said into that contact\'s `customFields` under the keys you name here, plus `outreachOutcome`, `outreachOutcomeAt` and `outreachOutcomeConversationId`, which are always written and cannot be used as field keys. Leave it empty and no extraction runs.',
+      'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftFirstTouch` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review), and `autoCurateEdits` defaults false (when true, a proposal a human edited before approving queues a KB curation pass over what they changed — leave it off unless edits on this campaign tend to correct facts rather than personalise copy). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `extractionSchema` declares up to 12 fields to pull out of whatever the prospect says back — on a voice campaign when the call ends, on an email or SMS campaign each time they reply. A background pass reads the transcript or the reply and writes what they actually said into that contact\'s `customFields` under the keys you name here, plus `outreachOutcome`, `outreachOutcomeAt` and `outreachOutcomeConversationId`, which are always written and cannot be used as field keys. Leave it empty and no extraction runs.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: CreateCampaignInput,
@@ -377,7 +346,7 @@ export class OutreachAdminTools {
     name: 'outreach_update_campaign',
     title: 'Outreach: Update campaign',
     description:
-      'Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled, toggle the automation flags `autoDraftFirstTouch` (weekly first-touch drafting), `autoDraftReplies` (auto-drafting replies to inbound prospect messages) and `autoCurateEdits` (KB curation over what a human changed before approving a draft), or replace `sequenceSteps` (the follow-up sequence; pass the full array, email campaigns only, empty array removes the sequence) or `extractionSchema` (the fields extracted from replies and finished calls; pass the full array, empty array turns extraction off). Replacing `extractionSchema` does not rewrite fields already extracted onto contacts — dropping a field here stops it being collected, it does not clear it. A campaign with a `journeyId` only accepts `name`, `extractionSchema` and `channelId` (another email channel, and only while the journey is not live); everything else is refused with `outreach_journey_managed` because the journey ignores it.',
+      'Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled, toggle the automation flags `autoDraftFirstTouch` (weekly first-touch drafting), `autoDraftReplies` (auto-drafting replies to inbound prospect messages) and `autoCurateEdits` (KB curation over what a human changed before approving a draft), or replace `extractionSchema` (the fields extracted from replies and finished calls; pass the full array, empty array turns extraction off). Replacing `extractionSchema` does not rewrite fields already extracted onto contacts — dropping a field here stops it being collected, it does not clear it. A campaign with a `journeyId` only accepts `name`, `extractionSchema` and `channelId` (another email channel, and only while the journey is not live); everything else is refused with `outreach_journey_managed` because the journey ignores it.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: UpdateCampaignInput,
@@ -503,7 +472,7 @@ export class OutreachAdminTools {
     name: 'outreach_withdraw_proposal',
     title: 'Outreach: Withdraw proposal',
     description:
-      'Retract one pending outreach proposal that should no longer be reviewed — a duplicate draft, a prospect who turned out not to qualify, a bounced address. Nothing is sent. This is a neutral retraction, not a rejection: it does not suppress the contact, does not change their consent, and does not stop a campaign sequence (a withdrawn follow-up leaves later steps eligible, unlike a dismissed one). A required `reason` and the withdrawing actor are recorded. Fails if the proposal is not pending. Returns the proposal with `status: "withdrawn"`.',
+      'Retract one pending outreach proposal that should no longer be reviewed — a duplicate draft, a prospect who turned out not to qualify, a bounced address. Nothing is sent. This is a neutral retraction, not a rejection: it does not suppress the contact and does not change their consent. A required `reason` and the withdrawing actor are recorded. Fails if the proposal is not pending. Returns the proposal with `status: "withdrawn"`.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: WithdrawProposalInput,
@@ -544,36 +513,6 @@ export class OutreachAdminTools {
   })
   proposeReply(args: z.infer<typeof ProposeReplyInput>) {
     return this.outreach.proposeReply(args);
-  }
-
-  @McpTool({
-    name: 'outreach_list_due_followups',
-    title: 'Outreach: List due follow-ups',
-    description:
-      "List outreach conversations whose next sequence step is due now. A row is returned when the campaign is enabled with a `sequenceSteps` entry beyond the last sent outbound, the wait period has elapsed with zero inbound replies, the conversation is open and unassigned, the contact is not suppressed, and no pending follow-up/reply or dismissed step blocks it. Campaign cadence rules are also honored: a contact at their `maxPerWeekPerContact` budget of sent touches in the trailing 7 days is held back, and nothing is due on a `blackoutDates` day (quiet hours are a send-time concern and do not gate drafting). Each row carries `conversationId`, `nextStep`, and the step brief — everything needed to draft and file the follow-up via `outreach_propose_followup`. An empty result means no sequence work is due.",
-    audiences: ['admin'],
-    scopes: ['outreach:read'],
-    input: ListDueFollowupsInput,
-    readOnlyHint: true,
-    destructiveHint: false,
-  })
-  listDueFollowups(args: z.infer<typeof ListDueFollowupsInput>) {
-    return this.outreach.listDueFollowups(args);
-  }
-
-  @McpTool({
-    name: 'outreach_propose_followup',
-    title: 'Outreach: Propose follow-up',
-    description:
-      "File a drafted sequence follow-up (step N of the campaign's `sequenceSteps`) on an outreach conversation, for human approval. Follow-up sequences run on email campaigns only. `step` must be the next step for the conversation, its wait period must have elapsed, and the prospect must not have replied — any inbound reply permanently stops the sequence (the reply flow owns the conversation). One pending follow-up per (campaign, contact); a dismissed follow-up permanently stops the sequence for that contact, so operators who dislike the wording should edit-then-approve instead. Approving sends on the existing conversation with no subject or unsubscribe footer (the thread already carries both).",
-    audiences: ['admin'],
-    scopes: ['outreach:write'],
-    input: ProposeFollowupInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
-  proposeFollowup(args: z.infer<typeof ProposeFollowupInput>) {
-    return this.outreach.proposeFollowup(args);
   }
 }
 

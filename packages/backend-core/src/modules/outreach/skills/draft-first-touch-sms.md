@@ -36,7 +36,7 @@ Bad: `Hi Jane! 👋 **Great news** from the team at Munin — we've *just* shipp
 
 A person approves in the dashboard. Munin composes the final body (draft + CTA + opt-out line), creates an outbound conversation on the campaign's SMS channel in `draft_only` mode, and queues the message for delivery. A reply from the prospect threads into that same conversation, so `outreach_propose_reply` works there — see `skill://outreach/draft-reply-email`, which applies to texts too.
 
-Follow-up sequences are email-only. An SMS campaign cannot carry `sequenceSteps`, and `outreach_propose_followup` rejects a text conversation. One touch, then the reply flow.
+A campaign sends one touch, then the reply flow takes over. A sequence of texts is a journey (`skill://journeys/build-journey`).
 
 
 ## What happens when they reply

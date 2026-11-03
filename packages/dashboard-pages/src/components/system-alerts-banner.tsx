@@ -15,7 +15,8 @@ type AlertSource =
   | 'delivery'
   | 'quota'
   | 'social'
-  | 'data_protection';
+  | 'data_protection'
+  | 'journeys';
 
 type AlertSeverity = 'warning' | 'error';
 
@@ -207,6 +208,8 @@ function ctaForSource(
       return { href: '/dashboard/settings/integrations', label: t('openSocialSettings') };
     case 'data_protection':
       return { href: '/dashboard/settings/privacy', label: t('openPrivacySettings') };
+    case 'journeys':
+      return { href: '/dashboard/journeys', label: t('openJourneys') };
     default:
       return undefined;
   }

@@ -1087,7 +1087,13 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(rows).toHaveLength(1);
       expect(rows[0]!.state).toBe('undeliverable');
       expect(rows[0]!.reason).toBe('hard_bounce');
-      expect(rows[0]!.failureCount).toBe(1);
+      expect(rows[0]!.failureCount).toBe(1);      const bounced = await db
+        .select({ payload: schema.events.payload })
+        .from(schema.events)
+        .where(and(eq(schema.events.orgId, orgId), eq(schema.events.type, 'conversation.message.bounced')));
+      expect(bounced.map((e) => e.payload)).toContainEqual(
+        expect.objectContaining({ address: 'gone.person@contoso.test', severity: 'hard' }),
+      );
     });
 
     it('soft-marks the address a no-reply mailbox notice answers on an existing thread', async () => {

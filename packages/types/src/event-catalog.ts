@@ -13,6 +13,7 @@ export const CMS_EVENT_TYPES = [
 export const CRM_EVENT_TYPES = [
   'crm.contact.created',
   'crm.contact.updated',
+  'crm.contact.unsubscribed',
   'crm.company.created',
   'crm.deal.created',
   'crm.deal.stage_changed',
@@ -56,6 +57,7 @@ export const CONVERSATION_EVENT_TYPES = [
   'conversation.message.opened',
   'conversation.message.read',
   'conversation.voice.call_ended',
+  'conversation.message.bounced',
 ] as const;
 
 export const OUTREACH_EVENT_TYPES = [
@@ -67,6 +69,7 @@ export const OUTREACH_EVENT_TYPES = [
   'outreach.proposal.send_failed',
   'outreach.proposal.dismissed',
   'outreach.proposal.withdrawn',
+  'outreach.outcome.recorded',
   'outreach.broadcast.created',
   'outreach.broadcast.approved',
   'outreach.broadcast.started',

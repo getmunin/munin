@@ -5,6 +5,9 @@ import { getCurrentContext, readApiBaseUrl, WebhookDispatcher, withContext } fro
 import { createHash, randomUUID } from 'node:crypto';
 import {
   CALL_OUTCOMES,
+  JOURNEY_CALL_OPENING_MAX_CHARS,
+  JOURNEY_CHAT_MAX_CHARS,
+  JOURNEY_SMS_MAX_CHARS,
   JourneySpecSchema,
   MAX_CONCURRENT_ENROLLMENTS,
   MAX_SUB_JOURNEY_DEPTH,
@@ -608,9 +611,10 @@ export class JourneyRuntimeService {
           reason: 'waiting for the agent to draft',
         });
       }
-      const draft = previous.draft as { subject?: string; body?: string; citations?: unknown[] } | undefined;
-      if (step.resumed.resolution === 'agent_drafted' && draft?.subject && draft.body) {
-        content = { subject: draft.subject, body: draft.body, format: 'markdown' };
+      const draft = previous.draft as { subject?: string | null; body?: string; citations?: unknown[] } | undefined;
+      const usable = draft?.body && (node.channel !== 'email' || draft.subject);
+      if (step.resumed.resolution === 'agent_drafted' && usable) {
+        content = { subject: node.channel === 'email' ? draft.subject! : null, body: draft.body!, format: 'markdown' };
         citations = draft.citations;
       }
     } else if (step.resumed) {
@@ -987,14 +991,26 @@ export class JourneyRuntimeService {
 
   async submitDraft(input: {
     stepRunId: string;
-    subject: string;
+    subject?: string;
     body: string;
     citations?: { title: string; source: string }[];
   }): Promise<{ accepted: true }> {
     const ctx = getCurrentContext();
     const { run, wait, node } = await this.waitingAgentStep(input.stepRunId, 'message');
     if (node?.type !== 'message' || node.draftBy !== 'agent') {
-      throw new NotFoundException(`journeys_not_found: agent-drafted email step ${input.stepRunId}`);
+      throw new NotFoundException(`journeys_not_found: agent-drafted message step ${input.stepRunId}`);
+    }
+    if (node.channel === 'email' && !input.subject) {
+      throw new BadRequestException('journeys_invalid: an email draft needs a subject');
+    }
+    if (node.channel !== 'email' && input.subject) {
+      throw new BadRequestException(`journeys_invalid: a ${node.channel} draft has no subject; send only the body`);
+    }
+    const limit = DRAFT_LIMITS[node.channel];
+    if (input.body.length > limit) {
+      throw new BadRequestException(
+        `journeys_invalid: the ${node.channel} draft is ${input.body.length} characters; the limit is ${limit}`,
+      );
     }
     await ctx.db
       .update(schema.journeyStepRuns)
@@ -1002,7 +1018,7 @@ export class JourneyRuntimeService {
         output: {
           ...run.output,
           draft: {
-            subject: input.subject,
+            subject: input.subject ?? null,
             body: input.body,
             citations: input.citations ?? [],
             draftedBy: ctx.actor!.id,
@@ -2277,6 +2293,13 @@ function payloadMatches(
     return actual === expected;
   });
 }
+
+const DRAFT_LIMITS: Record<Extract<JourneyNode, { type: 'message' }>['channel'], number> = {
+  email: 20_000,
+  sms: JOURNEY_SMS_MAX_CHARS,
+  chat: JOURNEY_CHAT_MAX_CHARS,
+  voice: JOURNEY_CALL_OPENING_MAX_CHARS,
+};
 
 function edgeTarget(node: JourneyNode, edge: string): string | undefined {
   switch (node.type) {

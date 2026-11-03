@@ -65,17 +65,16 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     return withContext({ db: appDb, actor, correlationId: randomUUID() }, fn);
   }
 
-  it('records a booking made by a guest in chat as a product event on their contact, ready for journeys', async () => {
-    const guest = new ActorIdentity('widget_agent', 'wdg_test', orgId, ['bookings:write'], ['self_service']);
-    await callAs(guest, () =>
+  const book = (actor: ActorIdentity, bookingRef: string) =>
+    callAs(actor, () =>
       service.record({
         name: 'booking.created',
         email: 'kari@kunde.test',
         connectionId: 'con_test',
         vendor: 'gastroplanner',
-        bookingRef: '512',
+        bookingRef,
         booking: {
-          bookingRef: '512',
+          bookingRef,
           confirmationCode: 'ABC',
           status: 'confirmed',
           venue: 'Bryggen',
@@ -86,11 +85,27 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       }),
     );
 
+  async function recorded(bookingRef: string) {
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const [event] = await db
       .select()
       .from(schema.analyticsProductEvents)
-      .where(and(eq(schema.analyticsProductEvents.orgId, orgId), eq(schema.analyticsProductEvents.name, 'booking.created')));
+      .where(and(eq(schema.analyticsProductEvents.orgId, orgId), sql`${schema.analyticsProductEvents.properties}->>'bookingRef' = ${bookingRef}`));
+    const inbox = await db
+      .select({ type: schema.journeyEventInbox.type, payload: schema.journeyEventInbox.payload })
+      .from(schema.journeyEventInbox)
+      .where(and(eq(schema.journeyEventInbox.orgId, orgId), sql`${schema.journeyEventInbox.payload}->'properties'->>'bookingRef' = ${bookingRef}`));
+    return { event, inbox: inbox.find((row) => row.type === 'analytics.product_event.recorded') };
+  }
+
+  it('records a booking made by a signed-in guest in chat as a product event on their contact, ready for journeys', async () => {
+    const [endUser] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'guest-kari', email: 'kari@kunde.test', metadata: { emailSource: 'org-attested' } })
+      .returning();
+    const guest = new ActorIdentity('widget_agent', 'wdg_test', orgId, ['bookings:write'], ['self_service'], endUser!.id);
+    await book(guest, '512');
+    const { event, inbox } = await recorded('512');
     expect(event).toMatchObject({ contactId });
     expect(event!.properties).toMatchObject({
       source: 'munin',
@@ -100,13 +115,17 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       startsAt: '2026-11-10T19:00:00',
       partySize: 4,
     });
-    const inbox = await db
-      .select({ type: schema.journeyEventInbox.type, payload: schema.journeyEventInbox.payload })
-      .from(schema.journeyEventInbox)
-      .where(eq(schema.journeyEventInbox.orgId, orgId));
-    const recorded = inbox.find((row) => row.type === 'analytics.product_event.recorded');
-    expect(recorded?.payload).toMatchObject({ name: 'booking.created', contactId });
+    expect(inbox?.payload).toMatchObject({ name: 'booking.created', contactId });
   });
+
+  it('does not tie a booking to the contact who owns the address when an anonymous guest typed it', async () => {
+    const guest = new ActorIdentity('widget_agent', 'wdg_test', orgId, ['bookings:write'], ['self_service']);
+    await book(guest, '513');
+    const { event, inbox } = await recorded('513');
+    expect(event).toMatchObject({ contactId: null, endUserId: null });
+    expect(inbox?.payload).toMatchObject({ name: 'booking.created', contactId: null, identityVerified: false });
+  });
+
 
   it('never fails the caller when the event cannot be recorded', async () => {
     const broken = new BookingEventsService(appDb, { record: () => Promise.reject(new Error('down')) });

@@ -155,6 +155,16 @@ const skipReason = TEST_URL
     ).rejects.toThrow(/reserved/);
   });
 
+  it('refuses an event dated more than a few minutes in the future', async () => {
+    const at = (ms: number) => new Date(Date.now() + ms).toISOString();
+    await expect(
+      asAgent(() => svc.record([{ id: randomUUID(), name: 'trial.started', occurredAt: at(60 * 60_000), identity: { email: 'future@kunde.test' } }])),
+    ).rejects.toThrow(/in the future/);
+    await expect(
+      asAgent(() => svc.record([{ id: randomUUID(), name: 'trial.started', occurredAt: at(60_000), identity: { email: 'skew@kunde.test' } }])),
+    ).resolves.toMatchObject([{ status: 'recorded' }]);
+  });
+
   it('lists event names with counts', async () => {
     const kari = await contact({ name: 'Kari Nordmann', email: 'kari@acme.test' });
     await asAgent(() =>

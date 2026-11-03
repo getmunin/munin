@@ -59,15 +59,24 @@ const SECRET = 'shpss_integration_signing_secret';
   });
 
   const order = Buffer.from(
-    JSON.stringify({ id: 1001, name: '#1001', email: 'Ola@Kunde.test', total_price: '199.00', currency: 'NOK', financial_status: 'paid' }),
+    JSON.stringify({
+      id: 1001,
+      name: '#1001',
+      email: 'Ola@Kunde.test',
+      total_price: '199.00',
+      currency: 'NOK',
+      financial_status: 'paid',
+      customer: { email: 'ola@kunde.test', verified_email: true },
+    }),
   );
   const hmac = (body: Buffer) => createHmac('sha256', SECRET).update(body).digest('base64');
 
-  it('records a signed paid order once as an order.paid event on the matching contact', async () => {
-    const send = () =>
-      service.receive({ connectionId, rawBody: order, hmac: hmac(order), topic: 'orders/paid', webhookId: 'wh_paid_1' });
-    expect(await send()).toEqual({ status: 'recorded' });
-    expect(await send()).toEqual({ status: 'duplicate' });
+  it('records a signed paid order once as an order.paid event on the matching contact, even when it is replayed', async () => {
+    const send = (webhookId: string) =>
+      service.receive({ connectionId, rawBody: order, hmac: hmac(order), topic: 'orders/paid', webhookId });
+    expect(await send('wh_paid_1')).toEqual({ status: 'recorded' });
+    expect(await send('wh_paid_1')).toEqual({ status: 'duplicate' });
+    expect(await send('wh_paid_replayed')).toEqual({ status: 'duplicate' });
 
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const rows = await db
@@ -77,6 +86,24 @@ const SECRET = 'shpss_integration_signing_secret';
     expect(rows).toHaveLength(1);
     expect(rows[0]!.contactId).not.toBeNull();
     expect(rows[0]!.properties).toMatchObject({ orderNumber: '#1001', totalPrice: '199.00', source: 'shopify' });
+  });
+
+  it('records a guest checkout with an unverified address without linking it to the contact who owns that address', async () => {
+    const guest = Buffer.from(JSON.stringify({ id: 1002, name: '#1002', email: 'ola@kunde.test', financial_status: 'pending' }));
+    expect(await service.receive({ connectionId, rawBody: guest, hmac: hmac(guest), topic: 'orders/create', webhookId: 'wh_guest' })).toEqual({
+      status: 'recorded',
+    });
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [row] = await db
+      .select()
+      .from(schema.analyticsProductEvents)
+      .where(and(eq(schema.analyticsProductEvents.orgId, orgId), eq(schema.analyticsProductEvents.name, 'order.created')));
+    expect(row).toMatchObject({ contactId: null, endUserId: null });
+    const [recorded] = await db
+      .select()
+      .from(schema.events)
+      .where(and(eq(schema.events.orgId, orgId), eq(schema.events.type, 'analytics.product_event.recorded'), sql`${schema.events.payload}->>'name' = 'order.created'`));
+    expect(recorded!.payload).toMatchObject({ identityVerified: false, contactId: null });
   });
 
   it('refuses unsigned or wrongly signed calls and connections without a signing secret', async () => {

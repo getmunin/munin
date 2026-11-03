@@ -1,10 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type { Db } from '@getmunin/db';
+import { and, eq } from 'drizzle-orm';
+import { schema, type Db } from '@getmunin/db';
 import { ActorIdentity, getCurrentContext, withContext } from '@getmunin/core';
+import { normalizeIdentityEmail } from '../analytics/visitor-identity.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ProductEventsService } from '../analytics/product-events.service.ts';
+import { isTrustedEmailSource, type EndUserProvenanceMetadata } from '../connectors/identity-provenance.ts';
 import type { BookingSummary } from './booking-adapter.ts';
 
 export const BOOKING_EVENTS_ACTOR_ID = 'bookings';
@@ -38,12 +41,13 @@ export class BookingEventsService {
     try {
       await this.db.transaction(async (tx) => {
         await applyTenancyGUCs(tx, actor);
-        await withContext({ db: tx, actor, correlationId: randomUUID() }, () =>
-          this.productEvents.record([
+        await withContext({ db: tx, actor, correlationId: randomUUID() }, async () => {
+          const verified = await this.verifiedFor(caller, input.email);
+          await this.productEvents.record([
             {
               id: `booking:${randomUUID()}`,
               name: input.name,
-              identity: { email: input.email },
+              identity: { email: input.email, ...(verified ? {} : { verified: false }) },
               properties: {
                 source: 'munin',
                 vendor: input.vendor,
@@ -58,13 +62,27 @@ export class BookingEventsService {
                 partySize: booking?.partySize ?? null,
               },
             },
-          ]),
-        );
+          ]);
+        });
       });
     } catch (err) {
       this.logger.warn(
         `${input.name} for booking ${input.bookingRef} was not recorded: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  private async verifiedFor(caller: ActorIdentity, email: string): Promise<boolean> {
+    if (!caller.hasAudience('self_service')) return true;
+    if (!caller.endUserId) return false;
+    const ctx = getCurrentContext();
+    const [endUser] = await ctx.db
+      .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, caller.orgId), eq(schema.endUsers.id, caller.endUserId)))
+      .limit(1);
+    if (!endUser?.email) return false;
+    const source = (endUser.metadata as EndUserProvenanceMetadata | null)?.emailSource;
+    return isTrustedEmailSource(source) && normalizeIdentityEmail(endUser.email) === normalizeIdentityEmail(email);
   }
 }

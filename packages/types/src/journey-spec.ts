@@ -51,6 +51,28 @@ export function canSendWithoutReview(
 export const JOURNEY_CHAT_MAX_CHARS = 2000;
 export const MAX_COMPANY_RECIPIENTS = 10;
 export const JOURNEY_SMS_MAX_CHARS = 480;
+export const DEFAULT_PHONE_QUIET_HOURS = '21:00-08:00';
+export const DEFAULT_AGENT_STEPS_PER_DAY = 1_000;
+const RESERVED_ENRICH_FIELD_KEYS: ReadonlySet<string> = new Set([
+  'timezone',
+  'locale',
+  'language',
+  'mergedInto',
+  'consentLawfulBasis',
+  'consentSource',
+  'doNotContact',
+  'unsubscribedAt',
+  'email',
+  'phone',
+]);
+
+export function isReservedEnrichKey(key: string): boolean {
+  return RESERVED_ENRICH_FIELD_KEYS.has(key) || key.startsWith('outreachOutcome');
+}
+
+export function journeyQuietHours(channel: string, quietHours: string | undefined): string | undefined {
+  return quietHours ?? (channel === 'sms' || channel === 'voice' ? DEFAULT_PHONE_QUIET_HOURS : undefined);
+}
 export const JOURNEY_CALL_OPENING_MAX_CHARS = 1000;
 export const CALL_OUTCOMES = ['reached', 'no_contact', 'refused', 'wrong_contact'] as const;
 export const REENTRY_POLICIES = ['once', 'once_at_a_time', 'concurrent'] as const;
@@ -385,6 +407,7 @@ export const JourneySettingsSchema = z.strictObject({
   chatChannelId: z.string().min(1).max(64).optional(),
   optimiser: z.enum(['off', 'weekly']).optional(),
   traceRetentionDays: z.number().int().min(30).max(3650).optional(),
+  agentStepsPerDay: z.number().int().min(1).max(100_000).optional(),
   guardrails: z
     .strictObject({
       enabled: z.boolean().optional(),

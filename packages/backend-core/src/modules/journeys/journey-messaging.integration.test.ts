@@ -37,6 +37,7 @@ import { emailTemplateHash } from '../outreach/email-template-hash.ts';
 import type { OutreachVoiceCaller } from '../conv/channels/outreach-voice.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
+const ANYTIME = '00:00-00:00';
 const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to run journey messaging tests.';
 
 (skipReason ? describe.skip : describe)('Journey messaging', () => {
@@ -433,7 +434,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
         },
         done,
       ],
-      { smsChannelId: sms!.id },
+      { smsChannelId: sms!.id, quietHours: ANYTIME },
     );
     const ola = await contact({ phone: '+4712345671', unsubscribedAt: new Date() });
     const id = await enroll(journeyId, ola.id);
@@ -479,6 +480,44 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     await expect(asAgent(() => outreach.sendScheduledProposal(proposal!.id, { publicBaseUrl: 'https://api.acme.test' }))).resolves.toMatchObject({
       outcome: 'sent',
     });
+  });
+
+  it('opens a new SMS thread when the contact\'s number changed since the last text', async () => {
+    const [sms] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'sms',
+        vendor: 'twilio',
+        name: `journey-sms-${randomUUID()}`,
+        active: true,
+        config: { accountSid: 'AC_test', encryptedAuthToken: 'fake', fromNumber: '+15550001113' },
+      })
+      .returning();
+    const text = (id: string, next: string) => ({
+      id,
+      type: 'message',
+      channel: 'sms',
+      class: 'transactional',
+      approval: 'auto',
+      content: { body: 'Hei, bordet ditt er bekreftet.' },
+      next,
+    });
+    const journeyId = await publish(
+      [text('welcome', 'renumber'), { id: 'renumber', type: 'wait', duration: 'PT1M', next: 'second' }, text('second', 'done'), done],
+      { smsChannelId: sms!.id, quietHours: ANYTIME },
+    );
+    const ola = await contact({ phone: '+4712345672' });
+    await enroll(journeyId, ola.id);
+    await worker.tick();
+    await worker.tick();
+    await db.update(schema.crmContacts).set({ phone: '+4712345673' }).where(eq(schema.crmContacts.id, ola.id));
+    const later = new Date(Date.now() + 5 * 60_000);
+    await worker.tick(later);
+    await worker.tick(later);
+    const texts = (await proposalsFor(ola.id)).filter((p) => p.status === 'sent');
+    expect(texts).toHaveLength(2);
+    expect(new Set(texts.map((p) => p.conversationId)).size).toBe(2);
   });
 
   it('allows two open journey emails to the same person on one campaign', async () => {
@@ -797,7 +836,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
         },
         done,
       ],
-      { smsChannelId: sms!.id },
+      { smsChannelId: sms!.id, quietHours: ANYTIME },
     );
     const ola = await contact({ phone: '+4712345670' });
     const run = await enroll(journeyId, ola.id);
@@ -961,7 +1000,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
         { id: 'replied', type: 'exit', reason: 'replied' },
         done,
       ],
-      { smsChannelId: sms!.id },
+      { smsChannelId: sms!.id, quietHours: ANYTIME },
     );
     const ola = await contact({ phone: '+4712345670' });
     const id = await enroll(journeyId, ola.id);
@@ -1190,7 +1229,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
         { id: 'lost', type: 'exit', reason: 'refused_by_phone' },
         done,
       ],
-      { voiceChannelId: voice!.id },
+      { voiceChannelId: voice!.id, quietHours: ANYTIME },
     );
     const ola = await contact({ phone: '+4712345678' });
     const kari = await contact({ phone: '+4712345679' });

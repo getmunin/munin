@@ -26,7 +26,7 @@ The audience is the segment's contacts minus everyone who can't lawfully or phys
 
 **Lawful basis is the operator's call.** If `no_lawful_basis` is large, tell the operator how many contacts it covers and ask what basis applies. A changelog to paying customers is usually `contract`; a newsletter to people who signed up is `consent`. Record it with `crm_set_contact_consent` only after they confirm, and include the `source` they give you. Never infer consent from the fact that someone is in the CRM.
 
-**Approval freezes the audience.** The recipient list is taken when the broadcast is approved. Contacts who join the segment afterwards are not added. Just before each email goes out, the worker re-checks that person and skips them (`skipped`, with a `skipReason`) if they unsubscribed, were blocked, lost their lawful basis or became undeliverable in the meantime.
+**Approval freezes the audience.** The recipient list is taken when the broadcast is approved. Contacts who join the segment afterwards are not added. Just before each email goes out, the worker re-checks that person and skips them (`skipped`, with a `skipReason`) if they unsubscribed, were blocked, lost their lawful basis or became undeliverable in the meantime. When the org has send rules (`skill://outreach/set-send-rules`), a recipient already over the weekly cap is skipped with `frequency_cap`, and one in their quiet hours or in a pause after a conversation is held back and sent later, so a broadcast can stay `sending` for a while after everyone else has received it.
 
 ## Procedure
 

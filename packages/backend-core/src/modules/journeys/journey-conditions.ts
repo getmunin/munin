@@ -1,4 +1,7 @@
 import type { ConditionOperator, JourneyCondition, Weekday } from '@getmunin/types';
+import { inTimeWindow, localClock } from '../../common/send-window.ts';
+
+export { inTimeWindow, localClock };
 
 export interface ConditionFacts {
   contact: Record<string, unknown> | null;
@@ -123,39 +126,6 @@ function orderable(value: unknown): number | null {
     return Number.isNaN(t) ? null : t;
   }
   return null;
-}
-
-const WEEKDAY_BY_SHORT: Record<string, Weekday> = {
-  Mon: 'mon',
-  Tue: 'tue',
-  Wed: 'wed',
-  Thu: 'thu',
-  Fri: 'fri',
-  Sat: 'sat',
-  Sun: 'sun',
-};
-
-export function localClock(now: Date, timezone: string): { weekday: Weekday; minutes: number } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-  return {
-    weekday: WEEKDAY_BY_SHORT[get('weekday')] ?? 'mon',
-    minutes: Number(get('hour')) * 60 + Number(get('minute')),
-  };
-}
-
-export function inTimeWindow(minutes: number, window: string): boolean {
-  const [from, to] = window.split('-').map((hm) => {
-    const [h, m] = hm.split(':').map(Number);
-    return h! * 60 + m!;
-  });
-  return from! <= to! ? minutes >= from! && minutes < to! : minutes >= from! || minutes < to!;
 }
 
 function matchesTime(

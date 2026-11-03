@@ -5407,6 +5407,58 @@
         ]
       }
     },
+    "/v1/outreach/send-rules": {
+      "get": {
+        "operationId": "OutreachSendRulesController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachSendRules"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "OutreachSendRulesController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutSendRulesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachSendRules"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations": {
       "get": {
         "operationId": "ConversationsController_list",
@@ -12633,6 +12685,88 @@
         "required": [
           "detectors",
           "policy"
+        ]
+      },
+      "PutSendRulesBody": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Time zone for contacts whose own `customFields.timezone` is not set.",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "quietHours": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d-([01]\\d|2[0-3]):[0-5]\\d$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When marketing must not go out, e.g. \"20:00-08:00\"; null for none.",
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "validDays": {
+            "anyOf": [
+              {
+                "minItems": 1,
+                "maxItems": 7,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "mon",
+                    "tue",
+                    "wed",
+                    "thu",
+                    "fri",
+                    "sat",
+                    "sun"
+                  ]
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Weekdays marketing may go out on; null for every day.",
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "weeklyCap": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most marketing messages one contact receives in any 7 days; null for no cap.",
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "cooldownHoursAfterConversation": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 720,
+            "description": "Hours to wait after a contact last wrote to the team before marketing reaches them again.",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        },
+        "required": [
+          "timezone",
+          "quietHours",
+          "validDays",
+          "weeklyCap",
+          "cooldownHoursAfterConversation"
         ]
       },
       "UpdateTopicBody": {

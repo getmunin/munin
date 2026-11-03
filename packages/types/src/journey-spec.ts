@@ -39,6 +39,15 @@ export type Weekday = (typeof WEEKDAYS)[number];
 export const MESSAGE_APPROVAL_MODES = ['draft_only', 'auto', 'off'] as const;
 export const MESSAGE_CLASSES = ['marketing', 'transactional'] as const;
 export const MESSAGE_CHANNELS = ['email', 'sms', 'voice', 'chat'] as const;
+
+export function canSendWithoutReview(
+  channel: (typeof MESSAGE_CHANNELS)[number],
+  messageClass: (typeof MESSAGE_CLASSES)[number],
+): boolean {
+  if (channel === 'voice') return false;
+  return channel !== 'sms' || messageClass === 'transactional';
+}
+
 export const JOURNEY_CHAT_MAX_CHARS = 2000;
 export const MAX_COMPANY_RECIPIENTS = 10;
 export const JOURNEY_SMS_MAX_CHARS = 480;

@@ -14,8 +14,10 @@ import {
   isNodeId,
   nodesWithErrors,
   parseNodeJson,
+  autoAllowed,
   setContent,
   setField,
+  setMessageClass,
   skeletonNode,
   specNodes,
   suggestNodeId,
@@ -193,13 +195,24 @@ export function DraftEditor({
                     />
                   </Field>
                 )}
+                {channel !== 'voice' && (
+                  <Field label={t('messageClass')}>
+                    <NativeSelect
+                      value={form.class === 'transactional' ? 'transactional' : 'marketing'}
+                      onChange={(e) => setForm(setMessageClass(form, e.target.value))}
+                    >
+                      <option value="marketing">{t('classMode.marketing')}</option>
+                      <option value="transactional">{t('classMode.transactional')}</option>
+                    </NativeSelect>
+                  </Field>
+                )}
                 <Field label={t('approval')}>
                   <NativeSelect
                     value={typeof form.approval === 'string' ? form.approval : 'draft_only'}
                     onChange={(e) => setForm(setField(form, 'approval', e.target.value))}
                   >
                     <option value="draft_only">{t('approvalMode.draft_only')}</option>
-                    {(channel === 'email' || channel === 'chat') && <option value="auto">{t('approvalMode.auto')}</option>}
+                    {autoAllowed(form) && <option value="auto">{t('approvalMode.auto')}</option>}
                     <option value="off">{t('approvalMode.off')}</option>
                   </NativeSelect>
                 </Field>

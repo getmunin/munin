@@ -1,3 +1,4 @@
+import { canSendWithoutReview } from '@getmunin/types';
 import type { JourneyValidation } from './journey-types';
 
 export type JourneyNodeRecord = Record<string, unknown> & { id: string; type: string };
@@ -52,6 +53,16 @@ export function setField(node: JourneyNodeRecord, field: string, value: unknown)
   return next;
 }
 
+export function autoAllowed(node: JourneyNodeRecord): boolean {
+  const channel = node.channel === 'sms' || node.channel === 'voice' || node.channel === 'chat' ? node.channel : 'email';
+  return canSendWithoutReview(channel, node.class === 'transactional' ? 'transactional' : 'marketing');
+}
+
+export function setMessageClass(node: JourneyNodeRecord, messageClass: string): JourneyNodeRecord {
+  const next = setField(node, 'class', messageClass === 'transactional' ? 'transactional' : undefined);
+  return next.approval === 'auto' && !autoAllowed(next) ? { ...next, approval: 'draft_only' } : next;
+}
+
 export function setContent(node: JourneyNodeRecord, field: 'subject' | 'body', value: string): JourneyNodeRecord {
   const content = { ...((node.content as Record<string, unknown> | undefined) ?? {}) };
   if (value === '' && field === 'subject') delete content.subject;
@@ -71,11 +82,11 @@ export function suggestNodeId(kind: NewStepKind, taken: readonly string[]): stri
 export function skeletonNode(kind: NewStepKind, id: string): JourneyNodeRecord {
   switch (kind) {
     case 'email':
-      return { id, type: 'message', channel: 'email', content: { subject: 'Subject', body: 'Hi {{name}},' } };
+      return { id, type: 'message', channel: 'email', content: { subject: 'Subject', body: 'Hi {{name}},' }, approval: 'auto' };
     case 'sms':
       return { id, type: 'message', channel: 'sms', content: { body: 'Hi {{name|there}},' } };
     case 'chat':
-      return { id, type: 'message', channel: 'chat', content: { body: 'Hi {{name|there}}!' } };
+      return { id, type: 'message', channel: 'chat', content: { body: 'Hi {{name|there}}!' }, approval: 'auto' };
     case 'voice':
       return { id, type: 'message', channel: 'voice', content: { body: 'Hi, this is a quick call about…' } };
     case 'wait':

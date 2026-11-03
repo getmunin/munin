@@ -423,8 +423,8 @@ function tightCycles(byId: Map<string, JourneyNode>): string[][] {
 
 function checkSmsNode(node: Extract<JourneyNode, { type: 'message' }>, errors: JourneyIssue[]): void {
   const fail = (code: string, message: string) => errors.push({ code, nodeId: node.id, message });
-  if (node.approval === 'auto') {
-    fail('sms_auto', 'SMS steps are always approved by a person; use draft_only');
+  if (node.approval === 'auto' && node.class !== 'transactional') {
+    fail('sms_auto', 'a marketing SMS step is approved by a person; only transactional SMS can use auto');
   }
   if (node.draftBy === 'agent' && !node.brief) {
     fail('agent_draft_brief', 'an agent-drafted message needs a brief');

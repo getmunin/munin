@@ -110,6 +110,7 @@ export const JOURNEY_EVENT_TYPES = [
   'journey.resumed',
   'journey.node.paused',
   'journey.node.resumed',
+  'journey.templates.reapproved',
   'journey.archived',
   'journey.enrolled',
   'journey.goal.reached',

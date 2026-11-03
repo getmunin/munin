@@ -132,6 +132,7 @@ export interface SimulationDto {
     byNode: { nodeId: string; kind: string; tier: string; runs: number; tokensPerRun: number; basis: 'history' | 'default' }[];
   };
   assumptions: { code: string; nodeId: string; event?: string; timeout?: string }[];
+  warnings?: { code: string; nodeId: string; count: number; message: string }[];
 }
 
 export interface JourneyApprovalDto {
@@ -173,6 +174,15 @@ export interface NodeReviewStatsDto {
   reviewed: number;
   uneditedRate: number | null;
   readyForAuto: boolean;
+}
+
+export interface TemplateChangesDto {
+  journeyId: string;
+  changes: { version: number; nodeId: string; templateId: string | null; templateName: string | null; deleted: boolean }[];
+  heldMessages: number;
+  fingerprint: string | null;
+  reviewPath: string;
+  released?: number;
 }
 
 export interface PublishRequestDto {

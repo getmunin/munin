@@ -162,6 +162,25 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(versions[0]!.changeSummary).toContain('Updated node welcome');
   });
 
+  it('refuses an edit made against a draft that changed since it was loaded, with codes the dashboard can translate', async () => {
+    const journey = await asAgent(() =>
+      svc.create({ name: 'Trial onboarding', outreachCampaignId: emailCampaignId, spec: validSpec() }),
+    );
+    const [loaded] = await asAgent(() => svc.listVersions(journey.id));
+    const node = { id: 'welcome', type: 'message', channel: 'email', content: { subject: 'Hei igjen', body: 'Hei!' }, next: 'done' };
+    const edited = await asAgent(() => svc.updateNode(journey.id, node, { ifSpecHash: loaded!.specHash }));
+    expect(edited.specHash).not.toBe(loaded!.specHash);
+
+    const stale = asAgent(() => svc.removeNode(journey.id, 'welcome', { ifSpecHash: loaded!.specHash }));
+    await expect(stale).rejects.toThrow(ConflictException);
+    await expect(stale).rejects.toMatchObject({ response: { code: 'journeys_draft_changed' } });
+    const duplicate = asAgent(() => svc.addNode(journey.id, node, undefined, { ifSpecHash: edited.specHash }));
+    await expect(duplicate).rejects.toMatchObject({ response: { code: 'journeys_node_exists' } });
+
+    const settled = await asAgent(() => svc.updateSettings(journey.id, { start: 'welcome' }, { ifSpecHash: edited.specHash }));
+    expect(settled.changeSummary).toContain('Updated node welcome');
+  });
+
   it('never changes a published version: edits open a new draft based on it', async () => {
     const journey = await asAgent(() =>
       svc.create({ name: 'Trial onboarding', outreachCampaignId: emailCampaignId, spec: validSpec() }),

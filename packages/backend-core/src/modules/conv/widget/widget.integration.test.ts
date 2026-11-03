@@ -7,12 +7,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import {
+  ActorIdentity,
   buildApiKey,
   hashSecret,
   keyPrefix,
   signHmac,
   widgetIdentityHashPayload,
+  withContext,
 } from '@getmunin/core';
+import { randomUUID } from 'node:crypto';
+import { ConvService } from '../conv.service.ts';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
@@ -2044,6 +2048,52 @@ const skipReason = TEST_URL
       ],
     });
     expect(tooBig.status).toBe(403);
+  });
+
+  it('shows a server-started conversation to its signed-in visitor with an unread count, and refuses anonymous end users', async () => {
+    const externalId = `user_server_${Date.now()}`;
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: `vis_server_seed_${Date.now()}`,
+      verifiedExternalId: externalId,
+      userHash,
+      messages: [{ role: 'end_user', body: 'earlier question' }],
+    });
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [endUser] = await db.select().from(schema.endUsers).where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)));
+    const [anon] = await db.insert(schema.endUsers).values({ orgId, externalId: `anon:vis_${Date.now()}` }).returning();
+    const conv = app.get(ConvService);
+    const actor = new ActorIdentity('system', 'journey-runtime', orgId, ['*'], ['admin']);
+    const started = await db.transaction((tx) =>
+      withContext({ db: tx, actor, correlationId: randomUUID() }, () =>
+        conv.startWidgetConversation({
+          channelId,
+          endUserId: endUser!.id,
+          body: 'Your trial ends Friday — want a hand setting up?',
+          authorType: 'agent',
+          authorId: 'journey-runtime',
+        }),
+      ),
+    );
+    await expect(
+      db.transaction((tx) =>
+        withContext({ db: tx, actor, correlationId: randomUUID() }, () =>
+          conv.startWidgetConversation({ channelId, endUserId: anon!.id, body: 'Hei', authorType: 'system', authorId: 'journey-runtime' }),
+        ),
+      ),
+    ).rejects.toThrow(/no verified widget identity/);
+
+    const res = await call(
+      'GET',
+      `/v1/widget/conversations?${qs({ channelId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    const body = res.json as { conversations: Array<{ id: string; sessionId: string; unreadCount: number; preview: string }> };
+    const server = body.conversations.find((c) => c.id === started.id)!;
+    expect(server.sessionId).toMatch(/^srv_/);
+    expect(server.preview).toContain('Your trial ends Friday');
+    expect(server.unreadCount).toBe(1);
   });
 
   it('lists conversations for an identity-verified visitor across sessions', async () => {

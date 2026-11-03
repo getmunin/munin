@@ -558,6 +558,41 @@ const skipReason = TEST_URL
     }
   });
 
+  it('tells a signed-in visitor about a new conversation of theirs in another session, and nobody else', async () => {
+    const ext = 'user_cross_session';
+    const hash = signHmac(ext, identitySecret);
+    const ws = connectWs(widgetKey, { origin: ALLOWED_ORIGIN, query: { externalId: ext, userHash: hash } });
+    const other = connectWs(widgetKey, {
+      origin: ALLOWED_ORIGIN,
+      query: { externalId: 'user_someone_else', userHash: signHmac('user_someone_else', identitySecret) },
+    });
+    await waitForOpen(ws);
+    await waitForOpen(other);
+    try {
+      ws.send(JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId: 'rt_cross_open' }));
+      other.send(JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId: 'rt_cross_other' }));
+      await new Promise((r) => setTimeout(r, 50));
+      const leak = expectNoEvent(other, (m) => m.type === 'event', 800);
+      await ingest(
+        widgetKey,
+        {
+          channelId,
+          sessionId: 'rt_cross_new',
+          verifiedExternalId: ext,
+          userHash: hash,
+          messages: [{ role: 'end_user', body: 'a new thread' }],
+        },
+        ALLOWED_ORIGIN,
+      );
+      const ev = await nextEvent(ws, (m) => m.type === 'event' && m.event?.type === 'conversation.created');
+      expect(ev.channel).toBe(`widget:${channelId}:rt_cross_open`);
+      await leak;
+    } finally {
+      ws.terminate();
+      other.terminate();
+    }
+  });
+
   it('does not deliver events to a verified subscriber whose externalId does not match the conversation contact', async () => {
     const ownerExt = 'user_owner';
     const ownerHash = signHmac(ownerExt, identitySecret);

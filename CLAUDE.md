@@ -1,6 +1,6 @@
 # Munin — agent guide
 
-MCP-first customer platform made for the agentic era (KB, Conversations, CRM, CMS, Outreach). The agent is the primary UI: agents act through MCP tools served at `/mcp`. The dashboard at `apps/web` is a thin shell over the `/v1/*` control plane; `/v1` controllers and MCP tools must both stay thin wrappers over the same service methods — logic lives in the service, never in a controller or tool handler.
+MCP-first customer platform made for the agentic era (KB, Conversations, CRM, CMS, Outreach, Journeys). The agent is the primary UI: agents act through MCP tools served at `/mcp`. The dashboard at `apps/web` is a thin shell over the `/v1/*` control plane; `/v1` controllers and MCP tools must both stay thin wrappers over the same service methods — logic lives in the service, never in a controller or tool handler.
 
 ## Repository layout
 
@@ -24,7 +24,7 @@ Monorepo on pnpm + Turborepo.
 | `crm` | `crm_*` | Contacts, companies, deals, pipelines, segments, merge proposals. |
 | `cms` | `cms_*` | Collections, entries, locales, assets, scheduled publishing, public delivery API. |
 | `outreach` | `outreach_*` | Propose-only outbound campaigns. Never auto-sends, except journey emails a person set to `auto` when publishing the journey. The org's send rules (`send-rules.ts`, `orgs.settings['outreach.sendRules']`) are the timing floor for every marketing send — campaigns, broadcasts and journeys; journeys and campaigns may only tighten them, replies and transactional messages are exempt. |
-| `journeys` | `journeys_*` | Versioned journey graphs that send from one email channel through a campaign the journey owns; outreach tools can't reconfigure it, and replies on a journey's threads belong to the journey. Agents draft and validate; publishing needs a signed-in person. |
+| `journeys` | `journeys_*` | Versioned journey graphs that replace campaign follow-up sequences. A journey sends from its own email channel (`journeys.sender_channel_id`) through the outreach outbox, with no campaign: its proposals carry `journey_id` and a null `campaign_id`. Only a journey converted with `journeys_create_from_campaign` keeps a campaign link, and outreach tools can't reconfigure that campaign while it lasts. Replies on a journey's threads belong to the journey. Agents draft, validate and answer agent steps; publishing and approval steps need a signed-in person. |
 | `slack` | `slack_*` | Operator bridge: mirrors conversations into Slack threads via a `WebhookDispatcher` sink + `slack_deliveries` queue. Not a `ChannelAdapter`. |
 | `connectors` | `connectors_*` | Plumbing trunk for customer-facing data connectors: encrypted connection storage, vendor-adapter registry, credential testing. Domain modules register adapters here and own the typed read surfaces; live reads only, no vendor data persisted. |
 | `commerce` | `commerce_*` | Connector-backed order lookups (Shopify, Magento 2): admin tools take an email; self-service tools bind to the calling end-user's email server-side. |

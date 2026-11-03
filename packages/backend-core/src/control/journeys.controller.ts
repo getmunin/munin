@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -30,6 +31,23 @@ import {
   type TraceDto,
 } from '../modules/journeys/journey-runtime.service.ts';
 import type { JourneyValidation } from '../modules/journeys/journey-validator.ts';
+import {
+  JourneyPublishingService,
+  type JourneyReportDto,
+  type PublishRequestDto,
+} from '../modules/journeys/journey-publishing.service.ts';
+import type { SimulationResult } from '../modules/journeys/journey-simulator.ts';
+import { createZodDto } from 'nestjs-zod';
+
+class ConfirmPublishBody extends createZodDto(z.object({ fingerprint: z.string().min(1).max(64) })) {}
+class SimulateBody extends createZodDto(
+  z.object({
+    contactIds: z.array(z.string().min(1).max(64)).max(500).optional(),
+    segmentId: z.string().min(1).max(64).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
+    renderSamples: z.number().int().min(0).max(5).optional(),
+  }),
+) {}
 
 const StatusSchema = z.enum(JOURNEY_STATUSES);
 
@@ -40,7 +58,42 @@ export class JourneysController {
   constructor(
     private readonly journeys: JourneysService,
     private readonly runtime: JourneyRuntimeService,
+    private readonly publishing: JourneyPublishingService,
   ) {}
+
+  @Get(':id/report')
+  report(@Param('id') id: string, @Query('version') version?: string): Promise<JourneyReportDto> {
+    return this.publishing.report(id, version ? Number.parseInt(version, 10) : undefined);
+  }
+
+  @Post(':id/versions/:number/simulate')
+  @HttpCode(200)
+  async simulate(
+    @Param('id') id: string,
+    @Param('number', ParseIntPipe) number: number,
+    @Body() body: SimulateBody,
+  ): Promise<SimulationResult & { version: number }> {
+    return this.publishing.simulate({ journeyId: id, version: number, ...body });
+  }
+
+  @Post(':id/versions/:number/request-publish')
+  @HttpCode(200)
+  requestPublish(
+    @Param('id') id: string,
+    @Param('number', ParseIntPipe) number: number,
+  ): Promise<PublishRequestDto> {
+    return this.publishing.requestPublish(id, number);
+  }
+
+  @Post(':id/versions/:number/publish')
+  @HttpCode(200)
+  publish(
+    @Param('id') id: string,
+    @Param('number', ParseIntPipe) number: number,
+    @Body() body: ConfirmPublishBody,
+  ): Promise<JourneyDetailDto> {
+    return this.publishing.confirmPublish(id, number, body.fingerprint);
+  }
 
   @Get('enrollments/:enrollmentId/trace')
   trace(@Param('enrollmentId') enrollmentId: string): Promise<TraceDto> {

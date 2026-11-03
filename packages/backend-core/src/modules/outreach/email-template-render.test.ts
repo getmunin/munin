@@ -155,6 +155,32 @@ describe('compileEmail', () => {
     ).toMatch(/fragment of <mj-section>/);
   });
 
+  it('spots document tags written with spaces, in linear time on long runs of whitespace', async () => {
+    expect(
+      await invalid(
+        compileEmail(TEMPLATE, { format: 'mjml', body: '<mj-section></mj-section>< / mj-body>' }),
+      ),
+    ).toMatch(/fragment of <mj-section>/);
+    expect(
+      await invalid(
+        compileEmail(TEMPLATE, { format: 'mjml', body: '<mj-section></mj-section>< / script>' }),
+      ),
+    ).toMatch(/<script> element/);
+    expect(
+      await invalid(
+        compileEmail(TEMPLATE, {
+          format: 'mjml',
+          body: '<mj-section><mj-column><mj-text><a href= " javascript:alert(1)">x</a></mj-text></mj-column></mj-section>',
+        }),
+      ),
+    ).toMatch(/javascript: URL/);
+    const started = performance.now();
+    for (const body of [`<${'\t'.repeat(50_000)}x`, `<a href=${' '.repeat(50_000)}x>`]) {
+      await compileEmail(TEMPLATE, { format: 'mjml', body }).catch(() => null);
+    }
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it('limits content to per-message placeholders', async () => {
     expect(
       await invalid(compileEmail(TEMPLATE, { format: 'markdown', body: 'Bye: {{unsubscribe_url}}' })),

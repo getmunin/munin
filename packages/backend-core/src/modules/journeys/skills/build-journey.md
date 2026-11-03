@@ -35,8 +35,12 @@ Rules that keep a journey safe and readable:
 - **Loops need a wait.** A `jump` back must pass through a `wait`, `wait_for` or `message`; each node also has a per-contact visit cap (`settings.maxVisitsPerNode`).
 - **Respect quiet time.** Set `settings.quietHours` and `settings.timezone` for the market you are writing to.
 
-## Hand it over
+## Prove it, then hand it over
 
-When `journeys_validate` returns no errors, summarise for the operator: who enters and when, each path, every email subject, the goal, and anything you assumed. Then stop. Do not try to publish it yourself.
+1. `journeys_simulate` runs the draft over real contacts without sending anything: who would enter or be excluded and why, where each person goes, what every email would do (send, wait for quiet hours or a cool-down, or be skipped because the contact is unsubscribed or undeliverable) and rendered samples. Read its `assumptions`: waits are assumed to elapse, awaited events not to arrive, and reviewers to approve.
+2. Fix what surprises you, then `journeys_request_publish`. It refuses a draft with validation errors and returns the diff against the live version, listing every email that would send without review (`autoNodes`).
+3. Summarise for the operator: who enters and when, each path, every email subject, the goal, the simulation counts and anything you assumed, and give them the `reviewPath`. A signed-in person confirms the publish there; you cannot. Editing the draft afterwards cancels the request, so request again after any change.
+
+After it goes live, `journeys_get_report` shows enrollments, exits, goal conversion against the holdout and how each node and email performs.
 
 To change a live journey, edit as above: the edits open a new draft version, and contacts already in the journey finish on the version they entered. To roll back, `journeys_restore_version` copies an earlier version into the draft, which again needs publishing. `journeys_pause` holds a live journey without removing anyone; `journeys_archive` retires it.

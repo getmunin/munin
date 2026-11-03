@@ -72,13 +72,13 @@ const CONTENT_PROBE = '<mj-section><mj-column><mj-text>Preview</mj-text></mj-col
 
 const UNSAFE_PATTERNS: { pattern: RegExp; reason: string }[] = [
   {
-    pattern: /<\s*\/?\s*(script|iframe|frame|frameset|object|embed|applet|form|input|button|base|meta|link)\b/i,
+    pattern: /<\s*(?:\/\s*)?(script|iframe|frame|frameset|object|embed|applet|form|input|button|base|meta|link)\b/i,
     reason: 'contains a <$1> element, which email templates may not use',
   },
   { pattern: /<\s*mj-include\b/i, reason: 'uses <mj-include>, which is not supported; inline the markup instead' },
   { pattern: /\son[a-z]+\s*=/i, reason: 'contains an inline event handler attribute' },
   {
-    pattern: /(?:=\s*["']?|url\(\s*["']?)\s*(javascript|vbscript|data)\s*:/i,
+    pattern: /(?:=|url\()\s*(?:["']\s*)?(javascript|vbscript|data)\s*:/i,
     reason: 'links to a $1: URL; host images and files somewhere public (for example as CMS assets) instead',
   },
   { pattern: /@import\b/i, reason: 'uses CSS @import; declare web fonts with <mj-font> instead' },
@@ -226,7 +226,7 @@ function contentToMjml(content: EmailContent): string {
     return `<mj-section><mj-column><mj-text>${renderMarkdownToHtml(content.body)}</mj-text></mj-column></mj-section>`;
   }
   assertSafeMarkup(content.body, 'content');
-  if (/<\s*\/?\s*(mjml|mj-head|mj-body)\b/i.test(content.body)) {
+  if (/<\s*(?:\/\s*)?(?:mjml|mj-head|mj-body)\b/i.test(content.body)) {
     throw new OutreachInvalidError(
       'mjml content is a fragment of <mj-section> or <mj-wrapper> elements; leave out <mjml>, <mj-head> and <mj-body>, which the template provides',
     );

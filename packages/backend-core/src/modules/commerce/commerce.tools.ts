@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
+import { ShopifyOrderEventsService } from './shopify-order-events.service.ts';
 import { CommerceService } from './commerce.service.ts';
 
 const LookupOrdersInput = z.object({
@@ -31,7 +32,25 @@ const GetProductInput = z.object({
 
 @Injectable()
 export class CommerceAdminTools {
-  constructor(@Inject(CommerceService) private readonly commerce: CommerceService) {}
+  constructor(
+    @Inject(CommerceService) private readonly commerce: CommerceService,
+    @Inject(ShopifyOrderEventsService) private readonly orderEvents: ShopifyOrderEventsService,
+  ) {}
+
+  @McpTool({
+    name: 'commerce_get_order_event_setup',
+    title: 'Commerce: Get order event setup',
+    description:
+      'For each Shopify connection, the webhook URL to add in Shopify (Settings → Notifications → Webhooks, JSON format), the order topics Munin turns into events (order.created, order.paid, order.fulfilled, order.cancelled) and whether the webhook signing secret is stored. Order events carry no order data beyond number, total and status; journeys and segments can use them.',
+    audiences: ['admin'],
+    scopes: ['commerce:read'],
+    input: z.object({}),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getOrderEventSetup() {
+    return this.orderEvents.setup();
+  }
 
   @McpTool({
     name: 'commerce_list_customer_orders',

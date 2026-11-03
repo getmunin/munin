@@ -26,6 +26,7 @@ export const ShopifyConfigInput = z.object({
     .toLowerCase()
     .regex(SHOP_DOMAIN_RE, 'expected a *.myshopify.com domain (no protocol, no path)'),
   accessToken: z.string().min(10).max(256).optional(),
+  webhookSecret: z.string().min(16).max(256).optional(),
   apiVersion: z
     .string()
     .regex(/^\d{4}-\d{2}$/)
@@ -36,6 +37,7 @@ const StoredShopifyConfig = z.object({
   shopDomain: z.string(),
   apiVersion: z.string(),
   encryptedAccessToken: z.string(),
+  encryptedWebhookSecret: z.string().optional(),
 });
 
 type StoredConfig = z.infer<typeof StoredShopifyConfig>;
@@ -140,6 +142,12 @@ export class ShopifyAdapter implements CommerceAdapter {
       label: `Admin API version (default ${DEFAULT_API_VERSION})`,
       required: false,
     },
+    {
+      key: 'webhookSecret',
+      label: 'Webhook signing secret (Settings → Notifications → Webhooks), only for order events',
+      required: false,
+      secret: true,
+    },
   ];
 
   constructor(private readonly fetchImpl: ConnectorFetch = safeFetch) {}
@@ -159,16 +167,22 @@ export class ShopifyAdapter implements CommerceAdapter {
     if (!encryptedAccessToken) {
       throw new ConnectorVendorError('accessToken is required when creating a Shopify connection');
     }
+    const encryptedWebhookSecret = parsed.webhookSecret
+      ? await encryptSecret(parsed.webhookSecret)
+      : prev?.success
+        ? prev.data.encryptedWebhookSecret
+        : undefined;
     return {
       shopDomain: parsed.shopDomain,
       apiVersion: parsed.apiVersion,
       encryptedAccessToken,
+      ...(encryptedWebhookSecret ? { encryptedWebhookSecret } : {}),
     } satisfies StoredConfig;
   }
 
   publicConfig(stored: Record<string, unknown>): Record<string, unknown> {
     const parsed = StoredShopifyConfig.parse(stored);
-    return { shopDomain: parsed.shopDomain, apiVersion: parsed.apiVersion };
+    return { shopDomain: parsed.shopDomain, apiVersion: parsed.apiVersion, orderEventsSecretSet: Boolean(parsed.encryptedWebhookSecret) };
   }
 
   async testConnection(ctx: ConnectorConnectionContext): Promise<ConnectorTestResult> {

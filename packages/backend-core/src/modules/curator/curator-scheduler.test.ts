@@ -22,12 +22,13 @@ describe('CuratorSchedulerService.onModuleInit', () => {
     return { svc, registry };
   }
 
-  it('registers the four default cron jobs when not disabled', () => {
+  it('registers the five default cron jobs when not disabled', () => {
     const { svc, registry } = build();
     svc.onModuleInit();
     const jobs = registry.getCronJobs();
     expect([...jobs.keys()].sort()).toEqual([
       'curator-crm-hygiene',
+      'curator-journeys-optimise',
       'curator-kb-sweep',
       'curator-outreach-draft-followup',
       'curator-outreach-first-touch',

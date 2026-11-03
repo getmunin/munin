@@ -213,6 +213,8 @@ export const SplitNodeSchema = z.strictObject({
     )
     .min(2)
     .max(10),
+  control: z.string().regex(NODE_ID_PATTERN).optional(),
+  sampleSize: z.number().int().min(20).max(1_000_000).optional(),
 });
 
 export const GoalNodeSchema = z.strictObject({
@@ -326,6 +328,7 @@ export const JourneySettingsSchema = z.strictObject({
   cooldownHoursAfterConversation: z.number().int().min(0).max(720).default(24),
   maxVisitsPerNode: z.number().int().min(1).max(20).default(3),
   smsChannelId: z.string().min(1).max(64).optional(),
+  optimiser: z.enum(['off', 'weekly']).optional(),
   guardrails: z
     .strictObject({
       enabled: z.boolean().optional(),

@@ -37,6 +37,7 @@ import {
   type AgentNodeStatsDto,
   type NodeReviewStatsDto,
   type PublishRequestDto,
+  type SplitResultDto,
 } from '../modules/journeys/journey-publishing.service.ts';
 import type { SimulationResult } from '../modules/journeys/journey-simulator.ts';
 import { JourneyMonitorService, type GuardrailReportDto } from '../modules/journeys/journey-monitor.service.ts';
@@ -188,6 +189,11 @@ export class JourneysController {
   @HttpCode(200)
   pause(@Param('id') id: string): Promise<JourneyDto> {
     return this.journeys.pause(id);
+  }
+
+  @Get(':id/split-results')
+  async splitResults(@Param('id') id: string): Promise<{ items: SplitResultDto[] }> {
+    return { items: await this.publishing.splitResults(id) };
   }
 
   @Get(':id/guardrails')

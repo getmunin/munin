@@ -1293,7 +1293,7 @@
       "detailSubtitle": "En versjonert kundereise bygget over MCP. Se over utkast og publiser dem her.",
       "listTitle": "Kundereiser",
       "emptyTitle": "Ingen kundereiser ennå",
-      "emptyBody": "Be agenten bygge en med skillen <code>build-journey</code>. Utkast dukker opp her for gjennomgang.",
+      "emptyBody": "Kundereiser settes opp av en agent over MCP. Utkast vises her, klare til å ses over.",
       "table": {
         "name": "Kundereise",
         "status": "Status",

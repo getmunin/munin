@@ -94,7 +94,7 @@ function JourneyList() {
       <section className="flex-1 space-y-4 px-5 pb-10 pt-1 md:px-8">
         <SectionHead title={t('listTitle')} divider={false} />
         {items !== null && items.length === 0 ? (
-          <EmptyCallout title={t('emptyTitle')} body={t.rich('emptyBody', { code: (c) => <code>{c}</code> })} />
+          <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
           <div className="-mx-5 overflow-x-auto px-5 md:mx-0 md:px-0">
             <table className="w-full">

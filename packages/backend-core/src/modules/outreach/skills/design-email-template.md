@@ -8,7 +8,7 @@ audiences: [admin]
 
 An email template is the org's branded layout for outreach email: the logo at the top, the colours and fonts, and a footer with the organization's name and the unsubscribe link. Each message's own content is poured into it at one marked spot. Templates are written in MJML, an open-source markup language that compiles to the table-based, inline-styled HTML that Outlook, Gmail, Apple Mail and dark mode all render consistently. Hand-written email HTML rarely survives those clients; MJML does the hard part.
 
-Templates are stored data, not code. Each org can keep several, for example "Newsletter" and "Changelog", and mark one as the default. A broadcast (`skill://outreach/send-broadcast`) renders through the template it names, else the org default, else a plain built-in layout.
+Templates are stored data, not code. Each org can keep several, for example "Newsletter" and "Changelog", and mark one as the default. A broadcast (`skill://outreach/send-broadcast`) and a journey email step (`skill://journeys/build-journey`) both render through the template they name, else the org default, else a plain built-in layout. Campaign emails are plain one-to-one messages and never use a template.
 
 ## The contract
 
@@ -41,7 +41,8 @@ Validation runs MJML in strict mode. An error names the line it is on: `template
 3. **Preview before saving.** Call `outreach_preview_email_template` with the draft as `mjml` and realistic content. Preview it twice: once with `format: "markdown"` (a heading, two paragraphs, a list and a link) and once with `format: "mjml"` (a card or two). The result carries the final `html`, the plain-text `text`, `htmlBytes` and `warnings`. Read the warnings. Above 90KB Gmail is close to clipping the message, which hides the footer and its unsubscribe link.
 4. **Show the operator.** Describe the layout, and offer the rendered `html` if their client can display it. The plain-text part is what screen readers and text-only clients get, so check that it reads in order.
 5. **Save it** with `outreach_create_email_template`. Pass `isDefault: true` when it's the org's first template or the operator says it should be the house style. Saving re-runs the same validation, so a template that previewed cleanly saves cleanly.
-6. **Iterate** with `outreach_update_email_template`. New MJML is validated first, and nothing is saved if it fails, so the stored template is never broken.
+6. **Iterate** with `outreach_update_email_template`. New MJML is validated first, and nothing is saved if it fails, so the stored template is never broken. Before changing a template that is already in use, read it with `outreach_get_email_template` and tell the operator what its `usage` lists: broadcasts, journey steps (with whether the version is live, a draft, or still has people running through it) and queued journey emails. A journey step that sends without review holds its emails after a template change until a signed-in person re-approves the journey, so editing a live journey's template pauses those sends.
+7. **Delete** with `outreach_delete_email_template` only once nothing names the template. It refuses while a broadcast, a live, draft or running journey version, or a queued journey email still uses it, and says which. Point those at another template first. Deleting the default is allowed, and whatever relied on it falls back to the built-in layout, but to a journey step that sends without review that is a template change like any other: its emails hold until the journey is re-approved. Check the `viaDefault` entries in `usage` and warn the operator first.
 
 ## Example template
 

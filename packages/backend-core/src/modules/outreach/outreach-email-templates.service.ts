@@ -1,8 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { getCurrentContext, readApiBaseUrl } from '@getmunin/core';
-import { stripTrailingSlashes } from '@getmunin/types';
+import { JourneySpecSchema, stripTrailingSlashes } from '@getmunin/types';
 import {
   renderEmail,
   validateEmailTemplate,
@@ -20,10 +20,40 @@ export interface EmailTemplateSummaryDto {
   updatedAt: string;
 }
 
+export interface EmailTemplateBroadcastUseDto {
+  id: string;
+  name: string;
+  status: string;
+  viaDefault: boolean;
+}
+
+export interface EmailTemplateJourneyStepUseDto {
+  journeyId: string;
+  journeyName: string;
+  version: number;
+  versionRole: 'live' | 'draft' | 'in_flight';
+  nodeId: string;
+  viaDefault: boolean;
+}
+
+export interface EmailTemplateUsageDto {
+  broadcasts: EmailTemplateBroadcastUseDto[];
+  broadcastTotal: number;
+  journeySteps: EmailTemplateJourneyStepUseDto[];
+  queuedJourneyEmails: number;
+  queuedJourneyEmailsViaDefault: number;
+}
+
 export interface EmailTemplateDto extends EmailTemplateSummaryDto {
   mjml: string;
   warnings: string[];
+  usage: EmailTemplateUsageDto;
 }
+
+const BROADCAST_LIST_LIMIT = 50;
+const OPEN_BROADCAST_STATUSES = ['pending', 'approved', 'sending'];
+const OPEN_PROPOSAL_STATUSES = ['pending', 'approved'];
+const RUNNING_ENROLLMENT_STATES = ['active', 'waiting'];
 
 export interface EmailTemplatePreviewDto extends RenderedEmail {
   templateId: string | null;
@@ -45,7 +75,7 @@ export class OutreachEmailTemplatesService {
   async getTemplate(id: string): Promise<EmailTemplateDto> {
     const row = await this.loadTemplate(id);
     const { warnings } = await validateEmailTemplate(row.mjml);
-    return toDto(row, warnings);
+    return toDto(row, warnings, await this.usage(row));
   }
 
   async createTemplate(input: {
@@ -73,7 +103,7 @@ export class OutreachEmailTemplatesService {
         createdByActorId: actor.id,
       })
       .returning();
-    return toDto(row!, warnings);
+    return toDto(row!, warnings, await this.usage(row!));
   }
 
   async updateTemplate(input: {
@@ -106,20 +136,33 @@ export class OutreachEmailTemplatesService {
       })
       .where(eq(schema.outreachEmailTemplates.id, existing.id))
       .returning();
-    return toDto(row!, warnings);
+    return toDto(row!, warnings, await this.usage(row!));
   }
 
   async deleteTemplate(id: string): Promise<{ deleted: true; id: string }> {
     const ctx = getCurrentContext();
     const existing = await this.loadTemplate(id);
-    const [used] = await ctx.db
-      .select({ id: schema.outreachBroadcasts.id, name: schema.outreachBroadcasts.name })
+    const usage = await this.usage(existing);
+    const [explicitBroadcasts] = await ctx.db
+      .select({ n: count() })
       .from(schema.outreachBroadcasts)
-      .where(eq(schema.outreachBroadcasts.emailTemplateId, existing.id))
-      .limit(1);
-    if (used) {
+      .where(eq(schema.outreachBroadcasts.emailTemplateId, existing.id));
+    const broadcasts = explicitBroadcasts?.n ?? 0;
+    const steps = usage.journeySteps.filter((s) => !s.viaDefault);
+    if (broadcasts > 0 || steps.length > 0 || usage.queuedJourneyEmails > 0) {
+      const examples = [
+        ...usage.broadcasts.filter((b) => !b.viaDefault).map((b) => `broadcast "${b.name}" (${b.id})`),
+        ...steps.map(
+          (s) => `step "${s.nodeId}" of journey "${s.journeyName}" (${s.journeyId}, ${s.versionRole.replace('_', '-')} version ${s.version})`,
+        ),
+      ].slice(0, 3);
+      const counts = [
+        broadcasts > 0 ? plural(broadcasts, 'broadcast') : null,
+        steps.length > 0 ? plural(steps.length, 'journey step') : null,
+        usage.queuedJourneyEmails > 0 ? plural(usage.queuedJourneyEmails, 'queued journey email') : null,
+      ].filter(Boolean);
       throw new ConflictException(
-        `outreach_conflict: email template ${existing.id} is used by broadcast "${used.name}" (${used.id}); point that broadcast at another template before deleting this one`,
+        `outreach_conflict: email template ${existing.id} is still used by ${counts.join(', ')}${examples.length > 0 ? ` (${examples.join('; ')})` : ''}; point them at another template, or let the queued emails send, before deleting this one`,
       );
     }
     await ctx.db
@@ -148,6 +191,103 @@ export class OutreachEmailTemplatesService {
       unsubscribeUrl: `${stripTrailingSlashes(readApiBaseUrl())}/v1/outreach/unsubscribe?token=preview`,
     });
     return { ...rendered, templateId: template?.id ?? null };
+  }
+
+  private async usage(row: TemplateRow): Promise<EmailTemplateUsageDto> {
+    const ctx = getCurrentContext();
+    const b = schema.outreachBroadcasts;
+    const broadcastUse = row.isDefault
+      ? or(eq(b.emailTemplateId, row.id), and(isNull(b.emailTemplateId), inArray(b.status, OPEN_BROADCAST_STATUSES)))
+      : eq(b.emailTemplateId, row.id);
+    const broadcastRows = await ctx.db
+      .select({ id: b.id, name: b.name, status: b.status, templateId: b.emailTemplateId })
+      .from(b)
+      .where(broadcastUse)
+      .orderBy(sql`${b.emailTemplateId} is null`, desc(b.createdAt))
+      .limit(BROADCAST_LIST_LIMIT);
+    const [broadcastTotal] = await ctx.db.select({ n: count() }).from(b).where(broadcastUse);
+    const journeySteps = await this.journeyStepUses(row);
+    const queued = await this.queuedJourneyEmails(row);
+    return {
+      broadcasts: broadcastRows.map((r) => ({ id: r.id, name: r.name, status: r.status, viaDefault: r.templateId === null })),
+      broadcastTotal: broadcastTotal?.n ?? 0,
+      journeySteps,
+      queuedJourneyEmails: queued.explicit,
+      queuedJourneyEmailsViaDefault: queued.viaDefault,
+    };
+  }
+
+  private async journeyStepUses(row: TemplateRow): Promise<EmailTemplateJourneyStepUseDto[]> {
+    const ctx = getCurrentContext();
+    const j = schema.journeys;
+    const v = schema.journeyVersions;
+    const e = schema.journeyEnrollments;
+    const versions = await ctx.db
+      .select({
+        journeyId: j.id,
+        journeyName: j.name,
+        liveVersion: j.liveVersion,
+        number: v.number,
+        publishedAt: v.publishedAt,
+        spec: v.spec,
+      })
+      .from(v)
+      .innerJoin(j, eq(j.id, v.journeyId))
+      .where(ne(j.status, 'archived'))
+      .orderBy(asc(j.name), asc(v.number));
+    const running = await ctx.db
+      .selectDistinct({ journeyId: e.journeyId, version: e.version })
+      .from(e)
+      .where(inArray(e.state, RUNNING_ENROLLMENT_STATES));
+    const inFlight = new Set(running.map((r) => `${r.journeyId}:${r.version}`));
+    const uses: EmailTemplateJourneyStepUseDto[] = [];
+    for (const version of versions) {
+      const versionRole =
+        version.number === version.liveVersion
+          ? 'live'
+          : !version.publishedAt
+            ? 'draft'
+            : inFlight.has(`${version.journeyId}:${version.number}`)
+              ? 'in_flight'
+              : null;
+      if (!versionRole) continue;
+      const parsed = JourneySpecSchema.safeParse(version.spec);
+      if (!parsed.success) continue;
+      for (const node of parsed.data.nodes) {
+        if (node.type !== 'message' || node.channel !== 'email') continue;
+        const templateId = node.content.templateId ?? null;
+        if (templateId !== row.id && !(templateId === null && row.isDefault)) continue;
+        uses.push({
+          journeyId: version.journeyId,
+          journeyName: version.journeyName,
+          version: version.number,
+          versionRole,
+          nodeId: node.id,
+          viaDefault: templateId === null,
+        });
+      }
+    }
+    return uses;
+  }
+
+  private async queuedJourneyEmails(row: TemplateRow): Promise<{ explicit: number; viaDefault: number }> {
+    const ctx = getCurrentContext();
+    const p = schema.outreachProposals;
+    const templateId = sql<string | null>`${p.journeyDelivery}->>'templateId'`;
+    const [counts] = await ctx.db
+      .select({
+        explicit: sql<number>`count(*) filter (where ${templateId} = ${row.id})::int`,
+        viaDefault: sql<number>`count(*) filter (where ${templateId} is null)::int`,
+      })
+      .from(p)
+      .where(
+        and(
+          eq(p.kind, 'journey'),
+          inArray(p.status, OPEN_PROPOSAL_STATUSES),
+          sql`${p.journeyDelivery}->>'channel' = 'email'`,
+        ),
+      );
+    return { explicit: counts?.explicit ?? 0, viaDefault: row.isDefault ? (counts?.viaDefault ?? 0) : 0 };
   }
 
   private async resolveTemplate(templateId: string | undefined): Promise<TemplateRow> {
@@ -219,6 +359,10 @@ export class OutreachEmailTemplatesService {
   }
 }
 
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
 function toSummaryDto(row: TemplateRow): EmailTemplateSummaryDto {
   return {
     id: row.id,
@@ -230,6 +374,6 @@ function toSummaryDto(row: TemplateRow): EmailTemplateSummaryDto {
   };
 }
 
-function toDto(row: TemplateRow, warnings: string[]): EmailTemplateDto {
-  return { ...toSummaryDto(row), mjml: row.mjml, warnings };
+function toDto(row: TemplateRow, warnings: string[], usage: EmailTemplateUsageDto): EmailTemplateDto {
+  return { ...toSummaryDto(row), mjml: row.mjml, warnings, usage };
 }

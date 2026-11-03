@@ -3,9 +3,14 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { sensitive } from '@getmunin/types';
 import { AnalyticsService } from './analytics.service.ts';
+import { ProductEventsService } from './product-events.service.ts';
 import { CursorInputSchema, IdMapSchema } from '../../common/transfer/transfer.types.ts';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 import { analyticsReadDepth, analyticsViewSource } from './ingest-fields.ts';
+
+const ProductEventNamesInput = z.object({
+  days: z.number().int().min(1).max(365).optional(),
+});
 
 const AnalyticsImportInput = z.object({
   config: z
@@ -199,7 +204,25 @@ const FunnelInput = z.object({
 
 @Injectable()
 export class AnalyticsAdminTools {
-  constructor(@Inject(AnalyticsService) private readonly analytics: AnalyticsService) {}
+  constructor(
+    @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
+    @Inject(ProductEventsService) private readonly productEvents: ProductEventsService,
+  ) {}
+
+  @McpTool({
+    name: 'analytics_list_product_event_names',
+    title: 'Analytics: List product event names',
+    description:
+      'List the product event names this org\'s backend has sent to POST /v1/events (for example `trial.started`), with how often each occurred and when it last occurred, over the last `days` (default 30, max 365). Use it to find the exact event names to reference in segment behaviour filters.',
+    audiences: ['admin'],
+    scopes: ['analytics:read'],
+    input: ProductEventNamesInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listProductEventNames(args: z.infer<typeof ProductEventNamesInput>) {
+    return this.productEvents.listEventNames(args.days);
+  }
 
   @McpTool({
     name: 'analytics_export_config',

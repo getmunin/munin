@@ -89,6 +89,31 @@
     }
   },
   {
+    "name": "analytics_list_product_event_names",
+    "title": "Analytics: List product event names",
+    "description": "List the product event names this org's backend has sent to POST /v1/events (for example `trial.started`), with how often each occurred and when it last occurred, over the last `days` (default 30, max 365). Use it to find the exact event names to reference in segment behaviour filters.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "analytics_export_config",
     "title": "Analytics: Export tracker configuration",
     "description": "Export this org's analytics configuration — trackers and visitor-identity links — as a portable JSON payload. Low-volume, returned in one shot. Tracker identity-verification secrets are redacted (the ciphertext is useless on another server); the operator re-enters them after import. Pair with `analytics_export_events` (paginated) and feed both into `analytics_import` on another Munin server.",
@@ -5907,7 +5932,7 @@
   {
     "name": "crm_create_segment",
     "title": "CRM: Create segment",
-    "description": "Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.",
+    "description": "Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp), and events (up to 5 behaviour filters on product events sent to POST /v1/events: `{ name, occurred, withinDays?, minCount? }` keeps contacts who did — or, with occurred:false, did not — trigger that event, optionally within the last N days and at least minCount times; list names with analytics_list_product_event_names). Combine fields and they AND together.",
     "audiences": [
       "admin"
     ],
@@ -5964,6 +5989,37 @@
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "events": {
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_.-]{1,64}$"
+                  },
+                  "occurred": {
+                    "type": "boolean"
+                  },
+                  "withinDays": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3650
+                  },
+                  "minCount": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "name",
+                  "occurred"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "additionalProperties": false
@@ -6051,6 +6107,37 @@
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "events": {
+                  "maxItems": 5,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9_.-]{1,64}$"
+                      },
+                      "occurred": {
+                        "type": "boolean"
+                      },
+                      "withinDays": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3650
+                      },
+                      "minCount": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "occurred"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "additionalProperties": false
@@ -6411,6 +6498,37 @@
                         "type": "string",
                         "format": "date-time",
                         "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "events": {
+                        "maxItems": 5,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9_.-]{1,64}$"
+                            },
+                            "occurred": {
+                              "type": "boolean"
+                            },
+                            "withinDays": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            "minCount": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10000
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "occurred"
+                          ],
+                          "additionalProperties": false
+                        }
                       }
                     },
                     "additionalProperties": false

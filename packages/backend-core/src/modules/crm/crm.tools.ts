@@ -216,6 +216,17 @@ const SegmentFilterSchema = z.object({
   companyId: z.string().min(1).max(64).optional(),
   searchQuery: z.string().min(1).max(200).optional(),
   contactedSince: z.string().datetime().optional(),
+  events: z
+    .array(
+      z.object({
+        name: z.string().regex(/^[a-z0-9_.-]{1,64}$/),
+        occurred: z.boolean(),
+        withinDays: z.number().int().min(1).max(3650).optional(),
+        minCount: z.number().int().min(1).max(10_000).optional(),
+      }),
+    )
+    .max(5)
+    .optional(),
 });
 
 const CreateSegmentInput = z.object({
@@ -713,7 +724,7 @@ export class CrmAdminTools {
     name: 'crm_create_segment',
     title: 'CRM: Create segment',
     description:
-      'Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.',
+      'Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp), and events (up to 5 behaviour filters on product events sent to POST /v1/events: `{ name, occurred, withinDays?, minCount? }` keeps contacts who did — or, with occurred:false, did not — trigger that event, optionally within the last N days and at least minCount times; list names with analytics_list_product_event_names). Combine fields and they AND together.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: CreateSegmentInput,

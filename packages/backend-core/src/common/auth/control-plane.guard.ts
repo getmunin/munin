@@ -17,6 +17,10 @@ export const ALLOW_MEMBER = 'munin:allow-member';
 export const AllowMember = (): MethodDecorator & ClassDecorator =>
   SetMetadata(ALLOW_MEMBER, true);
 
+export const CONTROL_PLANE_SCOPE = 'munin:control-plane-scope';
+export const AdmitAdminKeyScope = (scope: string): MethodDecorator & ClassDecorator =>
+  SetMetadata(CONTROL_PLANE_SCOPE, scope);
+
 export const MEMBER_FORBIDDEN_CODE = 'member_forbidden';
 
 const ADMIN_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
@@ -53,6 +57,11 @@ export class ControlPlaneGuard implements CanActivate {
       if (!actor.hasAudience('admin')) {
         throw new ForbiddenException('admin audience required for control-plane routes');
       }
+      const admittedScope = this.reflector.getAllAndOverride<string | undefined>(
+        CONTROL_PLANE_SCOPE,
+        [context.getHandler(), context.getClass()],
+      );
+      if (admittedScope && actor.hasScope(admittedScope)) return true;
       if (!actor.hasScope('*')) {
         throw new ForbiddenException(
           'control-plane routes require an unrestricted admin key (scope "*")',

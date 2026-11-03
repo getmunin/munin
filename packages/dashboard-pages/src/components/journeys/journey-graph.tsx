@@ -103,11 +103,15 @@ export function JourneyGraph({
   counts,
   highlight,
   emptyLabel,
+  onSelect,
+  errorIds,
 }: {
   spec: unknown;
   counts?: Record<string, number>;
   highlight?: string | null;
   emptyLabel: string;
+  onSelect?: (nodeId: string) => void;
+  errorIds?: ReadonlySet<string>;
 }) {
   const layout = layoutJourney(spec);
   if (!layout) {
@@ -163,16 +167,40 @@ export function JourneyGraph({
         })}
         {layout.nodes.map(({ node, x, y }) => {
           const count = counts?.[node.id];
+          const failing = errorIds?.has(node.id) ?? false;
           return (
-            <g key={node.id} transform={`translate(${x},${y})`}>
+            <g
+              key={node.id}
+              transform={`translate(${x},${y})`}
+              data-node-id={node.id}
+              className={onSelect ? 'cursor-pointer' : undefined}
+              role={onSelect ? 'button' : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+              aria-label={onSelect ? node.id : undefined}
+              onClick={onSelect ? () => onSelect(node.id) : undefined}
+              onKeyDown={
+                onSelect
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelect(node.id);
+                      }
+                    }
+                  : undefined
+              }
+            >
               <rect
                 width={NODE_W}
                 height={NODE_H}
                 rx={6}
-                strokeWidth={highlight === node.id ? 2 : 1}
+                strokeWidth={highlight === node.id || failing ? 2 : 1}
                 className={cn(
                   'fill-paper dark:fill-card',
-                  highlight === node.id ? 'stroke-cobalt' : 'stroke-rule-soft dark:stroke-rule-on-dark',
+                  highlight === node.id
+                    ? 'stroke-cobalt'
+                    : failing
+                      ? 'stroke-destructive'
+                      : 'stroke-rule-soft dark:stroke-rule-on-dark',
                 )}
               />
               <text x={10} y={18} className="fill-ink-label font-mono text-[10px] uppercase tracking-eyebrow">

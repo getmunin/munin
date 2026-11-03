@@ -35,6 +35,7 @@ import type {
   JourneyReportDto,
   JourneyStatus,
   JourneyVersionSummaryDto,
+  AgentNodeStatsDto,
   NodeReviewStatsDto,
   TraceDto,
 } from '../components/journeys/journey-types';
@@ -133,20 +134,23 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
   const [enrollments, setEnrollments] = useState<EnrollmentDto[]>([]);
   const [report, setReport] = useState<JourneyReportDto | null>(null);
   const [reviewStats, setReviewStats] = useState<NodeReviewStatsDto[]>([]);
+  const [agentStats, setAgentStats] = useState<AgentNodeStatsDto[]>([]);
   const [graphOf, setGraphOf] = useState<'live' | 'draft'>('live');
   const [publishing, setPublishing] = useState<number | null>(publishVersion ?? null);
   const [traceId, setTraceId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [detail, versionList, people, results, stats] = await Promise.all([
+    const [detail, versionList, people, results, stats, agents] = await Promise.all([
       api<JourneyDetailDto>(`/v1/journeys/${id}`),
       api<{ items: JourneyVersionSummaryDto[] }>(`/v1/journeys/${id}/versions`),
       api<{ items: EnrollmentDto[] }>(`/v1/journeys/${id}/enrollments?limit=100`),
       api<JourneyReportDto>(`/v1/journeys/${id}/report`),
       api<{ items: NodeReviewStatsDto[] }>(`/v1/journeys/${id}/review-stats`),
+      api<{ items: AgentNodeStatsDto[] }>(`/v1/journeys/${id}/agent-stats`),
     ]);
     setReviewStats(stats.items);
+    setAgentStats(agents.items);
     setJourney(detail);
     setVersions(versionList.items);
     setEnrollments(people.items);
@@ -275,7 +279,7 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
           )}
         </TabsPanel>
 
-        <TabsPanel value="report">{report && <ReportView report={report} reviewStats={reviewStats} />}</TabsPanel>
+        <TabsPanel value="report">{report && <ReportView report={report} reviewStats={reviewStats} agentStats={agentStats} />}</TabsPanel>
 
         <TabsPanel value="versions">
           <VersionList versions={versions} onPublish={(n) => setPublishing(n)} />
@@ -408,7 +412,15 @@ function TraceSheet({ enrollmentId, onClose }: { enrollmentId: string | null; on
   );
 }
 
-function ReportView({ report, reviewStats }: { report: JourneyReportDto; reviewStats: NodeReviewStatsDto[] }) {
+function ReportView({
+  report,
+  reviewStats,
+  agentStats,
+}: {
+  report: JourneyReportDto;
+  reviewStats: NodeReviewStatsDto[];
+  agentStats: AgentNodeStatsDto[];
+}) {
   const t = useTranslations('dashboard.journeys.report');
   const pct = (v: number | null) => (v === null ? '—' : `${(v * 100).toFixed(1)} %`);
   return (
@@ -445,6 +457,41 @@ function ReportView({ report, reviewStats }: { report: JourneyReportDto; reviewS
           ))}
         </dl>
       </section>
+      {agentStats.length > 0 && (
+        <section className="md:col-span-2">
+          <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('agents')}</h3>
+          <table className="mt-2 w-full text-sm">
+            <thead>
+              <tr className="border-b-[1px] border-rule-soft text-left dark:border-rule-on-dark">
+                <Th>{t('node')}</Th>
+                <Th className="text-right">{t('agentRuns')}</Th>
+                <Th className="text-right">{t('fallbackRate')}</Th>
+                <Th className="text-right">{t('avgTokens')}</Th>
+                <Th>{t('agentOutcome')}</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {agentStats.map((s) => (
+                <tr key={s.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+                  <td className="py-2 pr-4 font-mono text-xs">
+                    {s.nodeId} <span className="text-ink-label">{s.kind}</span>
+                  </td>
+                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.runs}</td>
+                  <td className="py-2 pr-4 text-right font-mono text-xs">{pct(s.fallbackRate)}</td>
+                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.avgTokens ?? '—'}</td>
+                  <td className="py-2 pr-4 font-mono text-xs text-ink-mute">
+                    {s.review
+                      ? t('draftOutcome', { edited: pct(s.review.editRate), rejected: pct(s.review.rejectionRate) })
+                      : Object.entries(s.edges)
+                          .map(([edge, n]) => `${edge} ${n}`)
+                          .join(' · ')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
       {reviewStats.length > 0 && (
         <section className="md:col-span-2">
           <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('reviews')}</h3>

@@ -233,7 +233,30 @@ const DAY = 86_400_000;
     expect(rows.map((r) => r.contactId)).toEqual([kari.id]);
   });
 
-  it('runs every step exactly once even when ticks repeat', async () => {
+  it('runs a concurrent journey once per event, each event at most once', async () => {
+    const journeyId = await publish({
+      ...trialSpec(),
+      entry: { trigger: { type: 'event', event: 'trial.started' }, segmentId, reentry: 'concurrent' },
+    });
+    const kari = await contact('Kari');
+    await record(kari.id, 'trial.started');
+    await record(kari.id, 'trial.started');
+    await worker.tick();
+    const rows = await enrollmentsOf(journeyId);
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.state === 'waiting' && r.entryKey !== '')).toBe(true);
+    expect(new Set(rows.map((r) => r.entryKey)).size).toBe(2);
+    const again = await asAgent(() =>
+      runtime.enroll({
+        journeyId,
+        subject: { contactId: kari.id, endUserId: null },
+        source: { type: 'event', eventId: rows[0]!.entryKey },
+      }),
+    );
+    expect(again).toMatchObject({ status: 'skipped', reason: 'already_active' });
+  });
+
+    it('runs every step exactly once even when ticks repeat', async () => {
     const journeyId = await publish(trialSpec());
     const kari = await contact('Kari');
     await record(kari.id, 'trial.started');

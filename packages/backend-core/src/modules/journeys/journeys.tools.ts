@@ -133,6 +133,40 @@ export class JourneysTools {
   }
 
   @McpTool({
+    name: 'journeys_create_from_campaign',
+    title: 'Journeys: Create a journey from a campaign sequence',
+    description:
+      'Convert an email outreach campaign\'s first touch and sequence steps into a draft journey: an agent-drafted email per step, a wait between them, and a reply ends the sequence. Give the goal event that counts as success. From then on the campaign\'s own first touches and follow-ups stop, because the journey runs it; archive the journey to hand them back.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: z.object({
+      campaignId: Id,
+      name: z.string().min(1).max(120).optional(),
+      goal: z.object({ event: z.string().min(1).max(96), windowDays: z.number().int().min(1).max(365) }),
+    }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  createFromCampaign(args: { campaignId: string; name?: string; goal: { event: string; windowDays: number } }) {
+    return this.templates.createFromCampaign(args);
+  }
+
+  @McpTool({
+    name: 'journeys_get_agent_stats',
+    title: 'Journeys: Get agent step stats',
+    description:
+      'How each agent step performed over the last N days (default 30): runs, how often it fell back, tokens used, the edges a decide step chose per day, and for agent-drafted emails how often reviewers edited or rejected the draft. Use it to tune briefs, edges and timeouts.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: JourneyIdInput.extend({ days: z.number().int().min(1).max(90).default(30) }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getAgentStats(args: { journeyId: string; days: number }) {
+    return this.publishing.agentStats(args.journeyId, args.days);
+  }
+
+  @McpTool({
     name: 'journeys_save_as_template',
     title: 'Journeys: Save a journey as a template',
     description:
@@ -394,7 +428,7 @@ export class JourneysTools {
       nodes: NODE_TYPE_REFERENCE,
       spec: {
         entry:
-          '{ trigger: { type: "event", event, where? } | { type: "segment", segmentId, schedule: "once"|"daily"|"weekly", at?: "09:00", weekday?, timezone? } | { type: "manual" }, segmentId?, reentry?: "once"|"once_at_a_time", lateEventWindowHours?, lastEntryAt? }',
+          '{ trigger: { type: "event", event, where? } | { type: "segment", segmentId, schedule: "once"|"daily"|"weekly", at?: "09:00", weekday?, timezone? } | { type: "manual" }, segmentId?, reentry?: "once"|"once_at_a_time"|"concurrent", lateEventWindowHours?, lastEntryAt? }',
         exit: '{ idleDays?, on?: [{ event, where? }] }',
         goal: '{ event, where?, windowDays, exitOnGoal? } — required before publishing',
         settings:

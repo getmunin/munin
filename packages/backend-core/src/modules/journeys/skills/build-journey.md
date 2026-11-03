@@ -17,7 +17,7 @@ A journey is a versioned graph that moves each contact through triggers, waits, 
    - Product events the org's backend sends: `analytics_list_product_event_names`. Only names listed there will ever arrive; ask the operator before relying on one that is not.
    - Saved audiences: `crm_list_segments`. Segment filters can include behaviour, for example "did not trigger `teammate.invited` within 5 days".
    - Email layouts: `outreach_list_email_templates`.
-3. Pick the campaign with `outreach_list_campaigns`. It must use an email channel and can carry only one journey. Create the campaign first with `outreach_create_campaign` if none fits.
+3. Pick the campaign with `outreach_list_campaigns`. It must use an email channel and can carry only one journey. Create the campaign first with `outreach_create_campaign` if none fits. If the campaign already has a first touch and follow-up steps, `journeys_create_from_campaign` turns them into a draft journey (agent-drafted emails, waits, a reply ends the sequence) to adapt instead of starting from scratch; from then on the journey runs that campaign.
 
 ## Draft it
 
@@ -35,6 +35,7 @@ Rules that keep a journey safe and readable:
 - **Use `onReply` on emails that invite an answer.** A reply always pauses the contact's run; Conversations answers it, and the journey continues on `onReply`, or at the same point once the thread closes.
 - **Read replies with an intent step.** Point the email's `onReply` at an `agent` node in `decide` mode with `inputs: ["reply", "thread", "contact"]`, edges such as `interested`, `question`, `not_now` and `stop`, and `fallback: "question"` — the safe path where a person or the support agent answers and the journey waits. Choosing `stop` also ends every other journey the person is in.
 - **Start from a conversation topic** with an event trigger on `conversation.topic_set` and `where: { "topicSlug": "pricing" }`; list topics with `conv_list_topics`.
+- **One run at a time, unless nothing is sent.** `entry.reentry` is `once_at_a_time` by default. `concurrent` starts one run per triggering event for the same person (at most 20 open), for bookkeeping journeys of actions and agent steps such as tagging every abandoned cart; it needs an event trigger and cannot contain message steps.
 - **Loops need a wait.** A `jump` back must pass through a `wait`, `wait_for` or `message`; each node also has a per-contact visit cap (`settings.maxVisitsPerNode`).
 - **Respect quiet time.** Set `settings.quietHours` and `settings.timezone` for the market you are writing to.
 
@@ -44,6 +45,6 @@ Rules that keep a journey safe and readable:
 2. Fix what surprises you, then `journeys_request_publish`. It refuses a draft with validation errors and returns the diff against the live version, listing every email that would send without review (`autoNodes`).
 3. Summarise for the operator: who enters and when, each path, every email subject, the goal, the simulation counts and anything you assumed, and give them the `reviewPath`. A signed-in person confirms the publish there; you cannot. Editing the draft afterwards cancels the request, so request again after any change.
 
-After it goes live, `journeys_get_report` shows enrollments, exits, goal conversion against the holdout and how each node and email performs.
+After it goes live, `journeys_get_report` shows enrollments, exits, goal conversion against the holdout and how each node and email performs. `journeys_get_agent_stats` shows each agent step's runs, fallback rate, tokens, the edges it chose per day and, for agent-drafted emails, how often reviewers edited or rejected them; `journeys_simulate` estimates the agent runs and tokens a draft would cost.
 
 To change a live journey, edit as above: the edits open a new draft version, and contacts already in the journey finish on the version they entered. To roll back, `journeys_restore_version` copies an earlier version into the draft, which again needs publishing. `journeys_pause` holds a live journey without removing anyone; `journeys_archive` retires it.

@@ -2250,6 +2250,146 @@ export const journeyVersions = pgTable(
   }),
 );
 
+// One person's run through one journey version. Keyed on the CRM contact
+// when known, else the identity end user, so anonymous-to-identified
+// visitors can enter too. `subject_key` is `c:<contactId>` or `eu:<endUserId>`.
+export const journeyEnrollments = pgTable(
+  'journey_enrollments',
+  {
+    id: id('jen'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    journeyId: text('journey_id')
+      .notNull()
+      .references(() => journeys.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    contactId: text('contact_id').references(() => crmContacts.id, { onDelete: 'set null' }),
+    endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
+    subjectKey: varchar('subject_key', { length: 80 }).notNull(),
+    state: varchar('state', { length: 16 }).notNull().default('active'),
+    currentNode: varchar('current_node', { length: 48 }),
+    visits: jsonb('visits').$type<Record<string, number>>().notNull().default({}),
+    context: jsonb('context').$type<Record<string, unknown>>().notNull().default({}),
+    conversationId: text('conversation_id'),
+    holdout: boolean('holdout').notNull().default(false),
+    source: jsonb('source').$type<Record<string, unknown>>().notNull().default({}),
+    enteredAt: timestamp('entered_at', { withTimezone: true }).notNull().defaultNow(),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+    idleDeadlineAt: timestamp('idle_deadline_at', { withTimezone: true }),
+    goalReachedAt: timestamp('goal_reached_at', { withTimezone: true }),
+    exitedAt: timestamp('exited_at', { withTimezone: true }),
+    exitReason: varchar('exit_reason', { length: 48 }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    openSubjectUq: uniqueIndex('journey_enrollments_open_subject_uq')
+      .on(t.journeyId, t.subjectKey)
+      .where(sql`state IN ('active', 'waiting')`),
+    claimIdx: index('journey_enrollments_claim_idx')
+      .on(t.nextRunAt)
+      .where(sql`state = 'active'`),
+    journeyIdx: index('journey_enrollments_journey_idx').on(t.journeyId, t.state),
+    contactIdx: index('journey_enrollments_contact_idx').on(t.contactId),
+    endUserIdx: index('journey_enrollments_end_user_idx').on(t.endUserId),
+  }),
+);
+
+// The explanation trail: one row per node visit. (enrollment, node, visit)
+// is the idempotency key, so a re-run after a crash reuses the stored
+// outcome instead of acting twice.
+export const journeyStepRuns = pgTable(
+  'journey_step_runs',
+  {
+    id: id('jsr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    enrollmentId: text('enrollment_id')
+      .notNull()
+      .references(() => journeyEnrollments.id, { onDelete: 'cascade' }),
+    nodeId: varchar('node_id', { length: 48 }).notNull(),
+    nodeType: varchar('node_type', { length: 16 }).notNull(),
+    visit: integer('visit').notNull(),
+    attempt: integer('attempt').notNull().default(1),
+    status: varchar('status', { length: 16 }).notNull(),
+    input: jsonb('input').$type<Record<string, unknown>>().notNull().default({}),
+    output: jsonb('output').$type<Record<string, unknown>>().notNull().default({}),
+    edgeTaken: varchar('edge_taken', { length: 64 }),
+    reason: text('reason'),
+    proposalId: text('proposal_id'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => ({
+    visitUq: uniqueIndex('journey_step_runs_visit_uq').on(t.enrollmentId, t.nodeId, t.visit),
+    enrollmentIdx: index('journey_step_runs_enrollment_idx').on(t.enrollmentId, t.startedAt),
+  }),
+);
+
+export const journeyWaits = pgTable(
+  'journey_waits',
+  {
+    id: id('jwt'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    enrollmentId: text('enrollment_id')
+      .notNull()
+      .references(() => journeyEnrollments.id, { onDelete: 'cascade' }),
+    stepRunId: text('step_run_id')
+      .notNull()
+      .references(() => journeyStepRuns.id, { onDelete: 'cascade' }),
+    kind: varchar('kind', { length: 24 }).notNull(),
+    wakeAt: timestamp('wake_at', { withTimezone: true }),
+    eventKey: varchar('event_key', { length: 96 }),
+    match: jsonb('match').$type<Record<string, unknown>>().notNull().default({}),
+    timeoutAt: timestamp('timeout_at', { withTimezone: true }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolution: varchar('resolution', { length: 24 }),
+    createdAt,
+  },
+  (t) => ({
+    wakeIdx: index('journey_waits_wake_idx')
+      .on(t.wakeAt)
+      .where(sql`resolved_at IS NULL`),
+    timeoutIdx: index('journey_waits_timeout_idx')
+      .on(t.timeoutAt)
+      .where(sql`resolved_at IS NULL`),
+    eventIdx: index('journey_waits_event_idx')
+      .on(t.orgId, t.eventKey)
+      .where(sql`resolved_at IS NULL`),
+    enrollmentIdx: index('journey_waits_enrollment_idx').on(t.enrollmentId),
+  }),
+);
+
+// Events copied in by JourneyEventSink inside the emitting transaction and
+// drained by the runtime worker, so no event is lost to a missed NOTIFY.
+// Org-only RLS (no end-user clause) because the sink also runs inside
+// end-user self-service requests.
+export const journeyEventInbox = pgTable(
+  'journey_event_inbox',
+  {
+    id: id('jei'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    eventId: text('event_id').notNull(),
+    type: varchar('type', { length: 96 }).notNull(),
+    actorId: text('actor_id'),
+    hopCount: integer('hop_count').notNull().default(0),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => ({
+    pendingIdx: index('journey_event_inbox_pending_idx')
+      .on(t.createdAt)
+      .where(sql`processed_at IS NULL`),
+  }),
+);
+
 export const outreachEmailTemplates = pgTable(
   'outreach_email_templates',
   {

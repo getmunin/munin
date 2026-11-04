@@ -1391,6 +1391,7 @@ function EditWidgetDialog({
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
+  const [name, setName] = useState(channel.name);
   const [originAllowlist, setOriginAllowlist] = useState(
     (channel.config.originAllowlist ?? []).join(', '),
   );
@@ -1405,11 +1406,14 @@ function EditWidgetDialog({
   const knowledge = useChannelKnowledge(true, sources);
 
   async function submit() {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
     const allowlist = parseOriginAllowlist(originAllowlist);
     const previous = channel.config.originAllowlist ?? [];
     const originsChanged =
       allowlist.length !== previous.length || allowlist.some((o, i) => o !== previous[i]);
     const parsed = UpdateWidgetBody.safeParse({
+      name: trimmedName !== channel.name ? trimmedName : undefined,
       originAllowlist: originsChanged ? allowlist : undefined,
       voiceChannelId: voiceChannelId || null,
       defaultAgentMode: defaultAgentMode ?? undefined,
@@ -1459,11 +1463,20 @@ function EditWidgetDialog({
           tab={tab}
           onTabChange={setTab}
           knowledge={knowledge}
-          channelName={channel.name}
+          channelName={name}
           onSubmit={() => void submit()}
           submitError={submitError}
           channelPanel={
             <div className="flex flex-col gap-4 pt-5">
+              <FormField label={t('nameLabel')} hint={t('nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('namePlaceholder')}
+                  required
+                  autoFocus
+                />
+              </FormField>
               <FormField label={t('originsLabel')} hint={t('originsHint')}>
                 <Input
                   value={originAllowlist}
@@ -1474,7 +1487,6 @@ function EditWidgetDialog({
                   placeholder="https://example.com, https://www.example.com"
                   required={widgetAllowlistRequired()}
                   aria-invalid={originsError ? true : undefined}
-                  autoFocus
                 />
                 {originsError && (
                   <p className="text-sm text-destructive" role="alert">

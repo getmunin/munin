@@ -37,6 +37,8 @@ export {
   SaveButton,
   HairlineRow,
   PickerRow,
+  RowGroup,
+  RowGroupItem,
   CheckboxRow,
   RadioRow,
   SETTINGS_MEASURE,

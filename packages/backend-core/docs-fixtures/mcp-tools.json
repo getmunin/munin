@@ -6660,7 +6660,7 @@
   {
     "name": "conv_update_widget_channel",
     "title": "Conv: Update chat-widget channel",
-    "description": "Update a chat-widget channel's originAllowlist, webhookOnEscalation, requireVerifiedIdentity, defaultAgentMode, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget API key is unchanged.",
+    "description": "Update a chat-widget channel's display name, originAllowlist, webhookOnEscalation, requireVerifiedIdentity, defaultAgentMode, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget key and identity secret are unchanged.",
     "audiences": [
       "admin"
     ],
@@ -6675,6 +6675,11 @@
       "properties": {
         "channelId": {
           "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
         },
         "defaultAgentMode": {
           "description": "How the agent handles messages on this widget: 'auto' replies directly, 'draft_only' files each reply as a draft a person reviews and sends (the visitor sees nothing until then), 'off' keeps the agent out. Omit to keep the current mode.",

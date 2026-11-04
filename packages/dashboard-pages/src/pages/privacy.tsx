@@ -11,6 +11,8 @@ import { Skeleton } from '../components/skeleton';
 import {
   CheckboxRow,
   RadioRow,
+  RowGroup,
+  RowGroupItem,
   SaveButton,
   SettingsColumn,
   SettingsFieldNote,
@@ -136,18 +138,19 @@ export function PrivacyPage() {
           </div>
         ) : (
           <form className="space-y-5" onSubmit={(e) => void submit(e)}>
-            <div>
+            <RowGroup>
               {loaded.availableDetectors.map((detector) => (
-                <CheckboxRow
-                  key={detector}
-                  checked={detectors.includes(detector)}
-                  onChange={() => toggle(detector)}
-                  disabled={saving}
-                  title={t(`detectors.${detector}.name`)}
-                  description={t(`detectors.${detector}.hint`)}
-                />
+                <RowGroupItem key={detector}>
+                  <CheckboxRow
+                    checked={detectors.includes(detector)}
+                    onChange={() => toggle(detector)}
+                    disabled={saving}
+                    title={t(`detectors.${detector}.name`)}
+                    description={t(`detectors.${detector}.hint`)}
+                  />
+                </RowGroupItem>
               ))}
-            </div>
+            </RowGroup>
 
             <fieldset className="space-y-2">
               <legend className="text-[12.5px] font-semibold text-ink dark:text-foreground">

@@ -9,6 +9,7 @@ export {
   AvatarBadge,
 } from './components/avatar';
 export { Button, buttonVariants } from './components/button';
+export { Checkbox } from './components/checkbox';
 export {
   Card,
   CardHeader,

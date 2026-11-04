@@ -12232,6 +12232,12 @@
       "UpdateWidgetBody": {
         "type": "object",
         "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
           "defaultAgentMode": {
             "type": "string",
             "enum": [

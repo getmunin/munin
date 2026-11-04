@@ -358,5 +358,6 @@ If you must call the endpoint from browser JS, the channel's `originAllowlist` r
 | Rotate the widget key | `conv_rotate_widget_key`. Old key revoked; existing inflight requests with it 401. |
 | Rotate the identity secret | `conv_rotate_widget_identity_secret`. Previously-issued `data-user-hash` values stop verifying; re-render signed-in pages with freshly-computed hashes. |
 | Tighten `originAllowlist` | `conv_update_widget_channel`. |
+| Rename the channel | `conv_update_widget_channel` with `name`. Purely cosmetic — the widget key and identity secret are unchanged. |
 | Route calls to a different voice channel | `conv_update_widget_channel` with `voiceChannelId` (see *Link a voice channel*). |
 | Inspect a conversation | Standard `conv_*` tools. The `metadata.sessionId`, `metadata.providerMessageId`, and `metadata.url` fields tell you the visitor's session. |

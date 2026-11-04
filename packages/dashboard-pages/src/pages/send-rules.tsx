@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Hero, Input } from '@getmunin/ui';
+import { Button, Checkbox, Hero, Input } from '@getmunin/ui';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
@@ -10,6 +10,8 @@ import { NativeSelect } from '../components/native-select';
 import { Skeleton } from '../components/skeleton';
 import {
   CheckboxRow,
+  RowGroup,
+  RowGroupItem,
   SaveButton,
   SettingsColumn,
   SettingsFieldNote,
@@ -30,6 +32,31 @@ import {
   type SendRulesForm,
   type Weekday,
 } from '../lib/send-rules-form';
+
+function WeekdayCheckbox({
+  checked,
+  onChange,
+  disabled,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  const id = useId();
+  return (
+    <div className="flex items-center gap-1.5">
+      <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
+      <label
+        htmlFor={id}
+        className="cursor-pointer text-[13px] text-ink dark:text-foreground"
+      >
+        {label}
+      </label>
+    </div>
+  );
+}
 
 function browserTimeZone(): string {
   try {
@@ -169,71 +196,72 @@ export function SendRulesPage() {
                 <SettingsFieldNote>{t('timezoneHint')}</SettingsFieldNote>
               </div>
 
-              <div>
-                <CheckboxRow
-                  checked={form.quietEnabled}
-                  onChange={() => patch({ quietEnabled: !form.quietEnabled })}
-                  disabled={saving}
-                  title={t('quietTitle')}
-                  description={t('quietHint')}
-                />
-                {form.quietEnabled ? (
-                  <div className="flex flex-wrap items-end gap-3 pb-2 pl-[26px]">
-                    <div className="space-y-1">
-                      <SettingsLabel htmlFor="send-rules-quiet-from">{t('quietFrom')}</SettingsLabel>
-                      <Input
-                        id="send-rules-quiet-from"
-                        type="time"
-                        value={form.quietFrom}
-                        onChange={(e) => patch({ quietFrom: e.target.value })}
-                        disabled={saving}
-                        className="w-[120px]"
-                      />
+              <RowGroup>
+                <RowGroupItem>
+                  <CheckboxRow
+                    checked={form.quietEnabled}
+                    onChange={() => patch({ quietEnabled: !form.quietEnabled })}
+                    disabled={saving}
+                    title={t('quietTitle')}
+                    description={t('quietHint')}
+                  />
+                  {form.quietEnabled ? (
+                    <div className="flex flex-wrap items-end gap-3 pl-[26px] pt-3">
+                      <div className="space-y-1">
+                        <SettingsLabel htmlFor="send-rules-quiet-from">{t('quietFrom')}</SettingsLabel>
+                        <Input
+                          id="send-rules-quiet-from"
+                          type="time"
+                          value={form.quietFrom}
+                          onChange={(e) => patch({ quietFrom: e.target.value })}
+                          disabled={saving}
+                          className="w-[120px]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <SettingsLabel htmlFor="send-rules-quiet-to">{t('quietTo')}</SettingsLabel>
+                        <Input
+                          id="send-rules-quiet-to"
+                          type="time"
+                          value={form.quietTo}
+                          onChange={(e) => patch({ quietTo: e.target.value })}
+                          disabled={saving}
+                          className="w-[120px]"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <SettingsLabel htmlFor="send-rules-quiet-to">{t('quietTo')}</SettingsLabel>
-                      <Input
-                        id="send-rules-quiet-to"
-                        type="time"
-                        value={form.quietTo}
-                        onChange={(e) => patch({ quietTo: e.target.value })}
-                        disabled={saving}
-                        className="w-[120px]"
-                      />
-                    </div>
-                  </div>
-                ) : null}
-                <CheckboxRow
-                  checked={form.daysEnabled}
-                  onChange={() => patch({ daysEnabled: !form.daysEnabled })}
-                  disabled={saving}
-                  title={t('daysTitle')}
-                  description={t('daysHint')}
-                />
-                {form.daysEnabled ? (
-                  <fieldset className="flex flex-wrap gap-x-4 gap-y-2 pb-2 pl-[26px]">
-                    <legend className="sr-only">{t('daysTitle')}</legend>
-                    {WEEKDAYS.map((day) => (
-                      <label key={day} className="flex items-center gap-1.5 text-[13px] text-ink dark:text-foreground">
-                        <input
-                          type="checkbox"
-                          className="size-3.5 accent-ink"
+                  ) : null}
+                </RowGroupItem>
+                <RowGroupItem>
+                  <CheckboxRow
+                    checked={form.daysEnabled}
+                    onChange={() => patch({ daysEnabled: !form.daysEnabled })}
+                    disabled={saving}
+                    title={t('daysTitle')}
+                    description={t('daysHint')}
+                  />
+                  {form.daysEnabled ? (
+                    <fieldset className="flex flex-wrap gap-x-4 gap-y-2 pl-[26px] pt-3">
+                      <legend className="sr-only">{t('daysTitle')}</legend>
+                      {WEEKDAYS.map((day) => (
+                        <WeekdayCheckbox
+                          key={day}
                           checked={form.days.includes(day)}
                           onChange={() => toggleDay(day)}
                           disabled={saving}
+                          label={t(`days.${day}`)}
                         />
-                        {t(`days.${day}`)}
-                      </label>
-                    ))}
-                  </fieldset>
-                ) : null}
-              </div>
+                      ))}
+                    </fieldset>
+                  ) : null}
+                </RowGroupItem>
+              </RowGroup>
             </div>
           </SettingsSection>
 
           <SettingsSection title={t('frequencyTitle')} help={t('frequencyHint')}>
-            <div className="space-y-5">
-              <div>
+            <RowGroup>
+              <RowGroupItem>
                 <CheckboxRow
                   checked={form.capEnabled}
                   onChange={() => patch({ capEnabled: !form.capEnabled })}
@@ -242,7 +270,7 @@ export function SendRulesPage() {
                   description={t('capHint')}
                 />
                 {form.capEnabled ? (
-                  <div className="space-y-1 pb-2 pl-[26px]">
+                  <div className="space-y-1 pl-[26px] pt-3">
                     <SettingsLabel htmlFor="send-rules-cap">{t('capLabel')}</SettingsLabel>
                     <Input
                       id="send-rules-cap"
@@ -258,24 +286,26 @@ export function SendRulesPage() {
                     />
                   </div>
                 ) : null}
-              </div>
-              <div className="space-y-2">
-                <SettingsLabel htmlFor="send-rules-cooldown">{t('cooldownLabel')}</SettingsLabel>
-                <Input
-                  id="send-rules-cooldown"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={720}
-                  step={1}
-                  value={form.cooldownHours}
-                  onChange={(e) => patch({ cooldownHours: e.target.value })}
-                  disabled={saving}
-                  className="w-[120px]"
-                />
-                <SettingsFieldNote>{t('cooldownHint')}</SettingsFieldNote>
-              </div>
-            </div>
+              </RowGroupItem>
+              <RowGroupItem>
+                <div className="space-y-2">
+                  <SettingsLabel htmlFor="send-rules-cooldown">{t('cooldownLabel')}</SettingsLabel>
+                  <Input
+                    id="send-rules-cooldown"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={720}
+                    step={1}
+                    value={form.cooldownHours}
+                    onChange={(e) => patch({ cooldownHours: e.target.value })}
+                    disabled={saving}
+                    className="w-[120px]"
+                  />
+                  <SettingsFieldNote>{t('cooldownHint')}</SettingsFieldNote>
+                </div>
+              </RowGroupItem>
+            </RowGroup>
           </SettingsSection>
 
           <div className="space-y-4">

@@ -581,7 +581,7 @@
       "addVoice": "Stemme",
       "createWidgetTitle": "Legg til en chat-widget-kanal",
       "createWidgetDescription": "Lager en `mn_widget_*` API-nøkkel knyttet til denne kanalen. Widgeten lastes på de konfigurerte opphavene og poster via /v1/widget/messages.",
-      "nameHint": "Til din egen referanse. Små bokstaver, ingen mellomrom.",
+      "nameHint": "Til din egen referanse.",
       "nameLabel": "Internt navn",
       "namePlaceholder": "f.eks. main-site-widget",
       "originsLabel": "Liste over godkjente opphav",
@@ -589,7 +589,7 @@
       "originsInvalid": "Ikke en gyldig URL: {invalid}. Hvert opphav må inkludere scheme + vert, f.eks. https://example.com.",
       "createWidget": "Opprett widget-kanal",
       "editWidgetTitle": "Rediger chat-widget",
-      "editWidgetDescription": "Endre hvor {name} kan lastes, og hvilken stemmekanal som tar anropene. Widget-nøkkelen og identitetshemmeligheten forblir de samme.",
+      "editWidgetDescription": "Gi {name} nytt navn, endre hvor den kan lastes, og hvilken stemmekanal som tar anropene. Widget-nøkkelen og identitetshemmeligheten forblir de samme.",
       "widgetVoice": {
         "label": "Stemmekanal",
         "hint": "Tar anrop besøkende starter fra denne widgeten. Automatisk bruker den eneste stemmekanalen deres; har dere flere, er anrop av til dere velger én.",
@@ -791,7 +791,7 @@
       "twilioSms": {
         "editTitle": "Rediger Twilio SMS-kanal",
         "editDescription": "Oppdater navn, Account SID eller avsender. La Auth Token stå tom for å beholde lagret verdi — skriv en ny for å rotere.",
-        "nameHint": "Til din egen referanse. Små bokstaver, ingen mellomrom.",
+        "nameHint": "Til din egen referanse.",
         "accountSidLabel": "Account SID",
         "accountSidHint": "Starter med «AC». Finnes i Twilio-konsollen under Account → API keys & tokens.",
         "authTokenLabel": "Auth Token",
@@ -823,7 +823,7 @@
       "messageBirdSms": {
         "editTitle": "Rediger MessageBird SMS-kanal",
         "editDescription": "Oppdater navn, avsender eller roter nøkler. La et hemmelighet-felt stå tomt for å beholde lagret verdi.",
-        "nameHint": "Til din egen referanse. Små bokstaver, ingen mellomrom.",
+        "nameHint": "Til din egen referanse.",
         "accessKeyLabel": "Access Key",
         "accessKeyHintCreate": "Live- eller test-Access Key fra MessageBird Developers-dashbordet.",
         "accessKeyHintEdit": "La feltet stå tomt for å beholde eksisterende. Lim inn ny verdi for å rotere.",
@@ -849,7 +849,7 @@
       "vapi": {
         "editTitle": "Rediger Vapi stemmekanal",
         "editDescription": "Oppdater navn, IDer eller roter nøkler. La et hemmelighet-felt stå tomt for å beholde lagret verdi.",
-        "nameHint": "Til din egen referanse. Små bokstaver, ingen mellomrom.",
+        "nameHint": "Til din egen referanse.",
         "apiKeyLabel": "Privat API-nøkkel",
         "apiKeyHintCreate": "Vapi privat API-nøkkel — brukes på server for utgående anrop og styring av assistenten. Eksponeres aldri i nettleseren.",
         "apiKeyHintEdit": "La feltet stå tomt for å beholde eksisterende. Lim inn ny verdi for å rotere.",
@@ -899,7 +899,7 @@
       "threll": {
         "editTitle": "Rediger Threll stemmekanal",
         "editDescription": "Oppdater navn, API-nøkkel eller IDer. La API-nøkkelen stå tom for å beholde lagret verdi.",
-        "nameHint": "Til din egen referanse. Små bokstaver, ingen mellomrom.",
+        "nameHint": "Til din egen referanse.",
         "apiKeyLabel": "API-nøkkel",
         "apiKeyHintCreate": "Threll API-nøkkel (Innstillinger → Utvikler). Munin bruker den til å registrere webhooken i Threll automatisk.",
         "apiKeyHintEdit": "La feltet stå tomt for å beholde eksisterende. Lim inn ny verdi for å rotere.",
@@ -968,12 +968,14 @@
       "createTitle": "Legg til en sporingskode",
       "createDescription": "Lager en offentlig `mn_track_*`-nøkkel og en identitetshemmelighet for server-siden. Skriptet lastes på de konfigurerte opphavene og poster til /v1/a/t.",
       "nameLabel": "Internt navn",
-      "nameHint": "Til intern referanse. Små bokstaver, ingen mellomrom.",
+      "nameHint": "Til intern referanse.",
       "namePlaceholder": "f.eks. getmunin-landing",
       "originsLabel": "Tillatte opphav",
       "originsHint": "Komma- eller mellomromseparerte opphav (fulle URL-er med scheme + vert).",
       "originsInvalid": "Ikke en gyldig URL: {invalid}. Hvert opphav må inneholde scheme + vert, f.eks. https://eksempel.no.",
       "createSubmit": "Opprett sporingskode",
+      "editTitle": "Rediger sporingskode",
+      "editDescription": "Gi {name} nytt navn, eller endre listen over tillatte opphav. Sporingsnøkkelen og identitetshemmeligheten forblir de samme.",
       "createdTitle": "Sporingskode opprettet — kopier disse hemmelighetene nå",
       "createdDescription": "To verdier for {name}. Sporingsnøkkelen vises kun ved opprettelse, identitetshemmeligheten kun ved opprettelse og rotasjon.",
       "keyLabelTracker": "Sporingsnøkkel (mn_track_*)",
@@ -1019,6 +1021,7 @@
       "errors": {
         "load": "Kunne ikke laste sporingskoder.",
         "create": "Kunne ikke opprette sporingskode.",
+        "update": "Kunne ikke oppdatere sporingskode.",
         "rotate": "Kunne ikke rotere identitetshemmelighet.",
         "rotateKey": "Kunne ikke rotere sporingsnøkkel.",
         "revoke": "Kunne ikke deaktivere sporingskode."

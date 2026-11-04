@@ -589,6 +589,22 @@ const skipReason = TEST_URL
     expect(disabled.config.requireVerifiedIdentity).toBe(false);
   });
 
+  it('renames a widget channel via update without touching its key or identity secret', async () => {
+    const renamed = await withClient(adminKey, async (c) => {
+      return parseToolResult<{
+        name: string;
+        config: { hasIdentityVerificationSecret: boolean };
+      }>(
+        await c.callTool({
+          name: 'conv_update_widget_channel',
+          arguments: { channelId, name: 'renamed-widget (new)' },
+        }),
+      );
+    });
+    expect(renamed.name).toBe('renamed-widget (new)');
+    expect(renamed.config.hasIdentityVerificationSecret).toBe(true);
+  });
+
   it('refuses to create a widget until someone has chosen how the agent replies', async () => {
     const result = await withClient(adminKey, (c) =>
       c.callTool({

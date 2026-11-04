@@ -1,7 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { Button, cn } from '@getmunin/ui';
+import { useId, type ReactNode } from 'react';
+import { Button, Checkbox, cn } from '@getmunin/ui';
 
 export const SETTINGS_MEASURE = 'max-w-[720px]';
 export const SETTINGS_MEASURE_WIDE = 'max-w-[1000px]';
@@ -188,6 +188,16 @@ export function PickerRow({
   );
 }
 
+export function RowGroup({ children }: { children: ReactNode }) {
+  return (
+    <div className="divide-y divide-rule-soft dark:divide-rule-on-dark">{children}</div>
+  );
+}
+
+export function RowGroupItem({ children }: { children: ReactNode }) {
+  return <div className="py-2.5">{children}</div>;
+}
+
 export function CheckboxRow({
   checked,
   onChange,
@@ -201,22 +211,23 @@ export function CheckboxRow({
   title: ReactNode;
   description?: ReactNode;
 }) {
+  const id = useId();
   return (
-    <label className="flex cursor-pointer items-start gap-3 border-b-[1px] border-rule-soft py-2.5 last:border-0 dark:border-rule-on-dark">
-      <input
-        type="checkbox"
-        className="mt-0.5 size-3.5 shrink-0 accent-ink"
-        checked={checked}
-        onChange={onChange}
-        disabled={disabled}
-      />
-      <span className="flex flex-1 flex-col gap-1">
+    <div className="flex items-start gap-3">
+      <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} className="mt-0.5" />
+      <label
+        htmlFor={id}
+        className={cn(
+          'flex flex-1 cursor-pointer flex-col gap-1',
+          disabled && 'cursor-not-allowed opacity-50',
+        )}
+      >
         <span className="text-[13.5px] text-ink dark:text-foreground">{title}</span>
         {description ? (
           <span className="text-[11.5px] leading-[1.4] text-ink-mute">{description}</span>
         ) : null}
-      </span>
-    </label>
+      </label>
+    </div>
   );
 }
 

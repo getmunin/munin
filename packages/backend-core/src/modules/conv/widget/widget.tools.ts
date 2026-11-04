@@ -25,6 +25,7 @@ const CreateInput = z.object({
 
 const UpdateInput = z.object({
   channelId: z.string(),
+  name: z.string().min(1).max(120).optional(),
   defaultAgentMode: AgentModeSchema.optional().describe(
     `${WIDGET_AGENT_MODE_DESCRIPTION} Omit to keep the current mode.`,
   ),
@@ -69,7 +70,7 @@ export class WidgetAdminTools {
     name: 'conv_update_widget_channel',
     title: 'Conv: Update chat-widget channel',
     description:
-      'Update a chat-widget channel\'s originAllowlist, webhookOnEscalation, requireVerifiedIdentity, defaultAgentMode, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget API key is unchanged.',
+      'Update a chat-widget channel\'s display name, originAllowlist, webhookOnEscalation, requireVerifiedIdentity, defaultAgentMode, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget key and identity secret are unchanged.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: UpdateInput,

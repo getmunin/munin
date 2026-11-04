@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Code, Copy } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { useFormatter, useNow, useTranslations } from 'next-intl';
-import { stripTrailingSlashes, CreateTrackerBody } from '@getmunin/types';
+import { stripTrailingSlashes, CreateTrackerBody, UpdateTrackerBody } from '@getmunin/types';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
@@ -83,6 +83,7 @@ export function TrackersPage() {
   const [trackers, setTrackers] = useState<TrackerSummary[] | null>(null);
   const [viewsSummary, setViewsSummary] = useState<TrackerViewSummaries>({});
   const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<TrackerSummary | null>(null);
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [rotatedKey, setRotatedKey] = useState<RotatedKey | null>(null);
   const [embedFor, setEmbedFor] = useState<TrackerSummary | null>(null);
@@ -196,6 +197,18 @@ export function TrackersPage() {
         }}
       />
 
+      {editing && (
+        <EditTrackerDialog
+          tracker={editing}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+          onSaved={() => {
+            void tryLoad();
+          }}
+        />
+      )}
+
       {rotatedIdentity && (
         <RotatedIdentityDialog
           rotated={rotatedIdentity}
@@ -240,6 +253,7 @@ export function TrackersPage() {
                 key={tr.id}
                 tracker={tr}
                 viewSummary={viewsSummary[tr.id] ?? null}
+                onEdit={() => setEditing(tr)}
                 onShowEmbed={() => setEmbedFor(tr)}
                 onRotateKey={() => {
                   void rotateKey(tr);
@@ -262,6 +276,7 @@ export function TrackersPage() {
 function TrackerRow({
   tracker,
   viewSummary,
+  onEdit,
   onShowEmbed,
   onRotateKey,
   onRotateIdentity,
@@ -269,12 +284,14 @@ function TrackerRow({
 }: {
   tracker: TrackerSummary;
   viewSummary: TrackerViewSummary | null;
+  onEdit: () => void;
   onShowEmbed: () => void;
   onRotateKey: () => void;
   onRotateIdentity: () => void;
   onRevoke: () => void;
 }) {
   const t = useTranslations('dashboard.trackers');
+  const tCommon = useTranslations('common');
   const format = useFormatter();
   const now = useNow();
   const origins = tracker.allowedOrigins;
@@ -301,10 +318,14 @@ function TrackerRow({
       status={status}
       accent={hasFired ? undefined : 'pending'}
       footerAction={
-        <Button variant="outline" size="sm" onClick={onShowEmbed} className="gap-1.5">
-          <Code className="size-3.5" />
-          {hasFired ? t('showEmbed') : t('install')}
-        </Button>
+        <>
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            {tCommon('edit')}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onShowEmbed}>
+            {hasFired ? t('showEmbed') : t('install')}
+          </Button>
+        </>
       }
       menu={
         <CardMenu label={t('moreActions')}>
@@ -490,6 +511,135 @@ function CreateTrackerDialog({
             </form>
           </>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditTrackerDialog({
+  tracker,
+  onOpenChange,
+  onSaved,
+}: {
+  tracker: TrackerSummary;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const t = useTranslations('dashboard.trackers');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [name, setName] = useState(tracker.name);
+  const [originAllowlist, setOriginAllowlist] = useState(tracker.allowedOrigins.join(', '));
+  const [originsError, setOriginsError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
+
+  useEffect(() => {
+    setName(tracker.name);
+    setOriginAllowlist(tracker.allowedOrigins.join(', '));
+    setOriginsError(null);
+    setSubmitError(null);
+    setSaving(false);
+  }, [tracker]);
+
+  async function submit() {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    const allowlist = originAllowlist
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const previous = tracker.allowedOrigins;
+    const originsChanged =
+      allowlist.length !== previous.length || allowlist.some((o, i) => o !== previous[i]);
+    const parsed = UpdateTrackerBody.safeParse({
+      name: trimmedName !== tracker.name ? trimmedName : undefined,
+      allowedOrigins: originsChanged ? allowlist : undefined,
+    });
+    if (!parsed.success) {
+      const issue = parsed.error.issues.find(
+        (i) => Array.isArray(i.path) && i.path[0] === 'allowedOrigins',
+      );
+      const badIndex = issue?.path[1];
+      const badValue = typeof badIndex === 'number' ? allowlist[badIndex] : undefined;
+      setOriginsError(t('originsInvalid', { invalid: badValue ?? allowlist.join(', ') }));
+      return;
+    }
+    setOriginsError(null);
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api(`/v1/analytics/trackers/${tracker.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(parsed.data),
+      });
+      onSaved();
+      notify.success(tCommon('saved'));
+      onOpenChange(false);
+    } catch (err) {
+      setSubmitError(toFormError(err, translate(err) || t('errors.update')));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('editTitle')}</DialogTitle>
+          <DialogDescription>{t('editDescription', { name: tracker.name })}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('nameLabel')} hint={t('nameHint')}>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('namePlaceholder')}
+              required
+              autoFocus
+            />
+          </FormField>
+          <FormField label={t('originsLabel')} hint={t('originsHint')}>
+            <Input
+              value={originAllowlist}
+              onChange={(e) => {
+                setOriginAllowlist(e.target.value);
+                if (originsError) setOriginsError(null);
+              }}
+              placeholder="https://example.com, https://www.example.com"
+              required={trackerAllowlistRequired()}
+              aria-invalid={originsError ? true : undefined}
+            />
+            {originsError && (
+              <p className="text-sm text-destructive" role="alert">
+                {originsError}
+              </p>
+            )}
+          </FormField>
+          {submitError && <FormError detail={submitError} />}
+
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button type="submit" variant="accent" className={dialogButtonClass} disabled={saving}>
+              {saving ? tCommon('saving') : tCommon('saveChanges')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

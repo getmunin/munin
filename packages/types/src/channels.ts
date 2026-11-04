@@ -83,6 +83,7 @@ export const CreateWidgetBody = z.object({
 export type CreateWidgetBodyT = z.infer<typeof CreateWidgetBody>;
 
 export const UpdateWidgetBody = z.object({
+  name: z.string().min(1).max(120).optional(),
   defaultAgentMode: AgentModeSchema.optional(),
   originAllowlist: z.array(z.string().url()).optional(),
   webhookOnEscalation: z.string().url().nullable().optional(),

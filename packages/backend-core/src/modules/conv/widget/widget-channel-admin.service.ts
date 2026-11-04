@@ -44,6 +44,7 @@ export interface CreateWidgetChannelInput {
 
 export interface UpdateWidgetChannelInput {
   channelId: string;
+  name?: string;
   defaultAgentMode?: AgentMode;
   originAllowlist?: string[];
   webhookOnEscalation?: string | null;
@@ -184,6 +185,7 @@ export class WidgetChannelAdminService {
       .update(schema.convChannels)
       .set({
         config: next,
+        ...(args.name !== undefined ? { name: args.name } : {}),
         ...(args.defaultAgentMode ? { defaultAgentMode: args.defaultAgentMode } : {}),
         updatedAt: new Date(),
       })

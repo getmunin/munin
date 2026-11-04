@@ -1,5 +1,24 @@
 # @getmunin/dashboard-pages
 
+## 5.51.0
+
+### Minor Changes
+
+- 965df22: `conv_update_widget_channel` now takes a `name`, matching `analytics_update_tracker`'s existing shape: renaming a chat-widget channel no longer requires creating a new one (and rotating its widget key and identity secret) just to drop a temporary suffix like the `(new)` used while running two deployments side by side during a migration.
+
+  The dashboard's widget channel edit dialog gained the matching "Internal name" field. The analytics tracker card also gained an edit dialog — previously the only way to rename a tracker or change its origin allowlist was through MCP — and its "Edit" button now sits beside the embed/install action, which moved to a secondary (ghost) style to match the chat widget card.
+
+### Patch Changes
+
+- 965df22: `@getmunin/ui` had no styled `Checkbox` — every checkbox in the dashboard (send rules, privacy redaction, weekday picker, …) fell back to a raw native `<input type="checkbox">`, which renders as the browser's oversized default widget and clashes with the sharp-cornered, zero-radius look used everywhere else. Added a `Checkbox` built on `@base-ui/react/checkbox`, styled to match (`border-ink` square, `bg-ink` + check glyph when ticked, same focus ring as `Button`), and swapped it into `CheckboxRow` and the send-rules weekday picker.
+
+  Fixed as a sibling `<label htmlFor>` rather than nesting the control inside the label: a custom (non-native-looking) checkbox wrapped by a native `<label>` double-fires on click — the browser's own label-forwarding dispatches a second native click at the hidden input in addition to the one the control already handles itself, which can silently cancel the toggle. Keeping the label as a sibling element pointing at the checkbox's `id` keeps "click anywhere in the row" working without that failure mode.
+
+- Updated dependencies [965df22]
+- Updated dependencies [965df22]
+  - @getmunin/ui@5.51.0
+  - @getmunin/types@5.51.0
+
 ## 5.50.0
 
 ### Patch Changes

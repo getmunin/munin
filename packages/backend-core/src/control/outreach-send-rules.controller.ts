@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put, UseGuards, UseInterceptors } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
@@ -21,6 +21,7 @@ export class OutreachSendRulesController {
   constructor(private readonly rules: OutreachSendRulesService) {}
 
   @Get()
+  @AdmitAdminKeyScope('outreach:read')
   get(): Promise<SendRulesDto> {
     return this.rules.get();
   }

@@ -12,7 +12,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { CmsService, type CmsExportData } from '../modules/cms/cms.service.ts';
@@ -46,6 +46,7 @@ const ExportCmsQuery = z.object({
 @Controller('v1/cms/transfer')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('cms:read')
 export class CmsTransferController {
   constructor(private readonly cms: CmsService) {}
 
@@ -59,6 +60,7 @@ export class CmsTransferController {
 
   @Post('import')
   @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
   import(@Body() input: ImportCmsBody): Promise<ImportResult> {
     return this.cms.importCms(toCmsExportData(input.records), input.idMap);
   }

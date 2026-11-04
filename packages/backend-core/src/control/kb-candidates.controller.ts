@@ -15,7 +15,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { TEXT_REPLACEMENTS_MAX, TextReplacementSchema } from '../common/text-replacements.ts';
@@ -70,6 +70,7 @@ interface CandidateListResponse {
 @Controller('v1/kb/curation/candidates')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('kb:read')
 export class KbCandidatesController {
   constructor(private readonly kb: KbService) {}
 
@@ -86,6 +87,7 @@ export class KbCandidatesController {
 
   @Patch(':id')
   @HttpCode(200)
+  @AdmitAdminKeyScope('kb:write')
   async update(
     @Param('id') id: string,
     @Body() input: UpdateCandidateBody,
@@ -105,6 +107,7 @@ export class KbCandidatesController {
 
   @Post(':id/publish')
   @HttpCode(200)
+  @AdmitAdminKeyScope('kb:write')
   async publish(
     @Param('id') id: string,
     @Body() input: PublishCandidateBody,
@@ -121,6 +124,7 @@ export class KbCandidatesController {
 
   @Post(':id/publish-revision')
   @HttpCode(200)
+  @AdmitAdminKeyScope('kb:write')
   async publishRevision(
     @Param('id') id: string,
     @Body() input: PublishRevisionBody,
@@ -136,6 +140,7 @@ export class KbCandidatesController {
 
   @Post(':id/dismiss')
   @HttpCode(200)
+  @AdmitAdminKeyScope('kb:write')
   async dismiss(
     @Param('id') id: string,
     @Body() input: DismissCandidateBody,
@@ -155,6 +160,7 @@ export class KbCandidatesController {
 @Controller('v1/kb/spaces')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('kb:read')
 export class KbSpacesController {
   constructor(private readonly kb: KbService) {}
 
@@ -167,6 +173,7 @@ export class KbSpacesController {
 @Controller('v1/kb/documents')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('kb:read')
 export class KbDocumentsController {
   constructor(private readonly kb: KbService) {}
 
@@ -179,6 +186,7 @@ export class KbDocumentsController {
 @Controller('v1/kb/curation/decisions')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('kb:read')
 export class KbCurationDecisionsController {
   constructor(private readonly kb: KbService) {}
 

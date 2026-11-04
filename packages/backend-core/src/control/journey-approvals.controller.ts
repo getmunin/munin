@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards, UseInte
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { JourneyRuntimeService } from '../modules/journeys/journey-runtime.service.ts';
@@ -18,6 +18,7 @@ export class JourneyApprovalsController {
   constructor(private readonly runtime: JourneyRuntimeService) {}
 
   @Get()
+  @AdmitAdminKeyScope('journeys:read')
   async list(
     @Query('status') status?: string,
     @Query('journeyId') journeyId?: string,
@@ -27,6 +28,7 @@ export class JourneyApprovalsController {
 
   @Post(':id/decide')
   @HttpCode(200)
+  @AdmitAdminKeyScope('journeys:write')
   decide(@Param('id') id: string, @Body() body: DecideApprovalBody): Promise<{ id: string; status: string }> {
     return this.runtime.decideApproval({ approvalId: id, decision: body.decision, note: body.note });
   }

@@ -15,7 +15,7 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { readApiBaseUrl } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -60,6 +60,7 @@ interface ProposalListResponse {
 @Controller('v1/outreach/proposals')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('outreach:read')
 export class OutreachProposalsController {
   constructor(private readonly outreach: OutreachService) {}
 
@@ -98,6 +99,7 @@ export class OutreachProposalsController {
 
   @Patch(':id')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async update(@Param('id') id: string, @Body() input: UpdateProposalBody): Promise<ProposalDto> {
     return translate(() =>
       this.outreach.updateProposal({
@@ -111,12 +113,14 @@ export class OutreachProposalsController {
 
   @Post(':id/viewed')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async markViewed(@Param('id') id: string): Promise<ProposalDto> {
     return translate(() => this.outreach.markProposalViewed(id));
   }
 
   @Post(':id/withdraw')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async withdraw(
     @Param('id') id: string,
     @Body() input: WithdrawProposalBody,
@@ -126,6 +130,7 @@ export class OutreachProposalsController {
 
   @Post(':id/approve')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async approve(@Param('id') id: string, @Body() input: ApproveProposalBody): Promise<ProposalDto> {
     const publicBaseUrl = readApiBaseUrl();
     return translate(() =>
@@ -139,6 +144,7 @@ export class OutreachProposalsController {
 
   @Post(':id/cancel-scheduled-send')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async cancelScheduledSend(
     @Param('id') id: string,
     @Body() input: CancelScheduledSendBody,
@@ -148,6 +154,7 @@ export class OutreachProposalsController {
 
   @Post(':id/dismiss')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async dismiss(@Param('id') id: string, @Body() input: DismissProposalBody): Promise<ProposalDto> {
     return translate(() => this.outreach.dismissProposal({ id, reason: input.reason }));
   }

@@ -10,7 +10,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -67,12 +67,14 @@ export class ConvTransferController {
   constructor(private readonly conv: ConvService) {}
 
   @Get('export')
+  @AdmitAdminKeyScope('conv:read')
   export(): Promise<ConvExportData> {
     return this.conv.exportConv();
   }
 
   @Post('import')
   @HttpCode(200)
+  @AdmitAdminKeyScope('conv:write')
   async import(@Body() input: ImportConvBody): Promise<ImportResult> {
     return this.conv.importConv(input.records, input.idMap);
   }

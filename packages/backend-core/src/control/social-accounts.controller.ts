@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, UseGuards, UseInterceptors } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { SOCIAL_PLATFORMS } from '../modules/social/social-platform.ts';
@@ -26,6 +26,7 @@ const PlatformAppBody = z.object({
 @Controller('v1/social/accounts')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('social:read')
 export class SocialAccountsController {
   constructor(
     private readonly accounts: SocialAccountsService,
@@ -48,11 +49,13 @@ export class SocialAccountsController {
   }
 
   @Post('apps')
+  @AdmitAdminKeyScope('social:write')
   setApp(@Body() body: unknown): Promise<SocialPlatformAppDto> {
     return this.accounts.setPlatformApp(PlatformAppBody.parse(body));
   }
 
   @Post('authorize-url')
+  @AdmitAdminKeyScope('social:write')
   authorizeUrl(@Body() body: unknown): Promise<{ url: string; expiresAt: string }> {
     return this.accounts.authorizeUrl(PlatformBody.parse(body));
   }
@@ -63,6 +66,7 @@ export class SocialAccountsController {
   }
 
   @Post('pending/:id/select')
+  @AdmitAdminKeyScope('social:write')
   selectTarget(@Param('id') id: string, @Body() body: unknown): Promise<SocialAccountDto> {
     return this.accounts.selectTarget({
       pendingId: id,
@@ -71,6 +75,7 @@ export class SocialAccountsController {
   }
 
   @Delete(':id')
+  @AdmitAdminKeyScope('social:write')
   disconnect(@Param('id') id: string): Promise<{ disconnected: true; id: string }> {
     return this.accounts.disconnect(id);
   }

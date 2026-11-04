@@ -32,7 +32,7 @@ import type {
   AttachmentUploadHandle,
 } from '../modules/conv/attachments/conv-attachments.types.ts';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { AllowMember, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, AllowMember, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
@@ -226,6 +226,7 @@ interface ConversationDetailResponse extends ConversationDetail {
 @Controller('v1/conversations')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('conv:write')
 export class ConversationsController {
   constructor(
     private readonly conv: ConvService,
@@ -236,6 +237,7 @@ export class ConversationsController {
   ) {}
 
   @Get()
+  @AdmitAdminKeyScope('conv:read')
   async list(
     @Query('status') status?: string,
     @Query('assigneeUserId') assigneeUserId?: string,
@@ -269,6 +271,7 @@ export class ConversationsController {
 
   @Get('queue')
   @AllowMember()
+  @AdmitAdminKeyScope('conv:read')
   async queue(
     @Query('status') status?: string,
     @Query('assigneeUserId') assigneeUserId?: string,
@@ -303,6 +306,7 @@ export class ConversationsController {
 
   @Get('queue/counts')
   @AllowMember()
+  @AdmitAdminKeyScope('conv:read')
   async queueCounts(
     @Query('assigneeUserId') assigneeUserId?: string,
     @Query('topicId') topicId?: string,
@@ -317,6 +321,7 @@ export class ConversationsController {
 
   @Get('topics')
   @AllowMember()
+  @AdmitAdminKeyScope('conv:read')
   async listTopics(): Promise<
     Array<{
       id: string;
@@ -345,6 +350,7 @@ export class ConversationsController {
   }
 
   @Get('automation')
+  @AdmitAdminKeyScope('conv:read')
   async automationSummary(): Promise<TopicAutomationSummary> {
     return translate(() => this.automation.listTopicAutomation());
   }
@@ -373,6 +379,7 @@ export class ConversationsController {
   }
 
   @Get('awaiting-reply')
+  @AdmitAdminKeyScope('conv:read')
   async awaitingReply(
     @Query('limit') limit?: string,
     @Query('lookbackMinutes') lookbackMinutes?: string,
@@ -401,6 +408,7 @@ export class ConversationsController {
 
   @Get(':id')
   @AllowMember()
+  @AdmitAdminKeyScope('conv:read')
   async get(
     @Param('id') id: string,
     @Query('translateTo') translateTo?: string,
@@ -652,6 +660,7 @@ export class ConversationsController {
   }
 
   @Get(':id/pending-translations')
+  @AdmitAdminKeyScope('conv:read')
   async pendingTranslations(
     @Param('id') id: string,
     @Query('targetLanguage') targetLanguage: string,
@@ -675,6 +684,7 @@ export class ConversationsController {
   }
 
   @Get(':id/language-detection')
+  @AdmitAdminKeyScope('conv:read')
   async languageDetection(@Param('id') id: string): Promise<LanguageDetectionSample> {
     return this.translation.languageDetectionSample(id);
   }

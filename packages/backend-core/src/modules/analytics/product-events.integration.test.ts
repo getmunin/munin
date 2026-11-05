@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -10,6 +10,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { ProductEventsService } from './product-events.service.ts';
+import { ProductEventFieldsService } from './product-event-fields.ts';
 import { IdentityService } from '../identity/identity.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
@@ -384,5 +385,182 @@ const skipReason = TEST_URL
     await expect(asAgent(() => crm.deleteSegment(segment.id))).rejects.toThrow(ConflictException);
     await db.execute(sql`DELETE FROM outreach_broadcasts WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_channels WHERE org_id = ${orgId}`);
+  });
+
+  describe('copying event properties onto contact custom fields', () => {
+    const fields = new ProductEventFieldsService();
+
+    beforeEach(async () => {
+      await asAgent(() =>
+        fields.configure({
+          mappings: [
+            { property: 'threllName', field: 'threll_name' },
+            { property: 'trialEndsAt', field: 'trial_ends_at', events: ['trial.started', 'trial.extended'] },
+          ],
+        }),
+      );
+    });
+
+    afterEach(async () => {
+      await db.update(schema.orgs).set({ settings: {} }).where(eq(schema.orgs.id, orgId));
+    });
+
+    async function customFieldsOf(id: string) {
+      const [row] = await db
+        .select({ customFields: schema.crmContacts.customFields })
+        .from(schema.crmContacts)
+        .where(eq(schema.crmContacts.id, id));
+      return row!.customFields;
+    }
+
+    it('writes threllName from worker.created to threll_name and updates it on threll.renamed', async () => {
+      const kari = await contact({ name: 'Kari Nordmann', email: 'kari@acme.test' });
+      await asAgent(() =>
+        svc.record([
+          {
+            id: 'evt-worker',
+            name: 'worker.created',
+            occurredAt: '2026-11-01T10:00:00.000Z',
+            identity: { contactId: kari.id },
+            properties: { accountId: 'acc-1', workerId: 'w-1', threllName: 'Resepsjonen' },
+          },
+        ]),
+      );
+      expect(await customFieldsOf(kari.id)).toMatchObject({ threll_name: 'Resepsjonen' });
+
+      await asAgent(() =>
+        svc.record([
+          {
+            id: 'evt-renamed',
+            name: 'threll.renamed',
+            occurredAt: '2026-11-02T10:00:00.000Z',
+            identity: { contactId: kari.id },
+            properties: { accountId: 'acc-1', workerId: 'w-1', threllName: '  Thea  ' },
+          },
+        ]),
+      );
+      expect(await customFieldsOf(kari.id)).toMatchObject({ threll_name: 'Thea' });
+    });
+
+    it('keeps other custom fields and never lets an older event overwrite a newer value', async () => {
+      const kari = await contact({ name: 'Kari Nordmann', email: 'kari@acme.test' });
+      await db
+        .update(schema.crmContacts)
+        .set({ customFields: { plan: 'pro' } })
+        .where(eq(schema.crmContacts.id, kari.id));
+      await asAgent(() =>
+        svc.record([
+          {
+            id: 'evt-new',
+            name: 'threll.renamed',
+            occurredAt: '2026-11-03T10:00:00.000Z',
+            identity: { contactId: kari.id },
+            properties: { threllName: 'Thea' },
+          },
+          {
+            id: 'evt-old',
+            name: 'test_call.completed',
+            occurredAt: '2026-11-01T10:00:00.000Z',
+            identity: { contactId: kari.id },
+            properties: { threllName: 'Resepsjonen', durationSeconds: 42 },
+          },
+        ]),
+      );
+      expect(await customFieldsOf(kari.id)).toEqual({ plan: 'pro', threll_name: 'Thea' });
+    });
+
+    it('copies only from the events a mapping names and skips empty or structured values', async () => {
+      const kari = await contact({ name: 'Kari Nordmann', email: 'kari@acme.test' });
+      await asAgent(() =>
+        svc.record([
+          {
+            id: 'evt-checkout',
+            name: 'checkout.started',
+            identity: { contactId: kari.id },
+            properties: { trialEndsAt: '2026-11-10T00:00:00.000Z', threllName: '   ' },
+          },
+          {
+            id: 'evt-nested',
+            name: 'number.connected',
+            identity: { contactId: kari.id },
+            properties: { threllName: { first: 'Thea' } },
+          },
+        ]),
+      );
+      expect(await customFieldsOf(kari.id)).toEqual({});
+
+      await asAgent(() =>
+        svc.record([
+          {
+            id: 'evt-trial',
+            name: 'trial.started',
+            identity: { contactId: kari.id },
+            properties: { trialEndsAt: '2026-11-10T00:00:00.000Z' },
+          },
+        ]),
+      );
+      expect(await customFieldsOf(kari.id)).toEqual({ trial_ends_at: '2026-11-10T00:00:00.000Z' });
+    });
+
+    it('does nothing without a mapping, without a contact, or for a repeated event', async () => {
+      const kari = await contact({ name: 'Kari Nordmann', email: 'kari@acme.test' });
+      const event = {
+        id: 'evt-once',
+        name: 'worker.created',
+        occurredAt: '2026-11-01T10:00:00.000Z',
+        identity: { contactId: kari.id },
+        properties: { threllName: 'Resepsjonen' },
+      };
+      await asAgent(() => svc.record([event]));
+      await db
+        .update(schema.crmContacts)
+        .set({ customFields: { threll_name: 'Endret for hånd' } })
+        .where(eq(schema.crmContacts.id, kari.id));
+      const [again] = await asAgent(() => svc.record([event]));
+      expect(again!.status).toBe('duplicate');
+      expect(await customFieldsOf(kari.id)).toEqual({ threll_name: 'Endret for hånd' });
+
+      const [unknown] = await asAgent(() =>
+        svc.record([
+          {
+            id: 'evt-nobody',
+            name: 'worker.created',
+            identity: { externalId: 'user-unknown' },
+            properties: { threllName: 'Resepsjonen' },
+          },
+        ]),
+      );
+      expect(unknown!.contactId).toBeNull();
+
+      await asAgent(() => fields.configure({ mappings: [] }));
+      await asAgent(() =>
+        svc.record([
+          {
+            id: 'evt-unmapped',
+            name: 'threll.renamed',
+            identity: { contactId: kari.id },
+            properties: { threllName: 'Thea' },
+          },
+        ]),
+      );
+      expect(await customFieldsOf(kari.id)).toEqual({ threll_name: 'Endret for hånd' });
+      expect(await asAgent(() => fields.get())).toEqual({ mappings: [], configured: true });
+    });
+
+    it('refuses an invalid or duplicated mapping', async () => {
+      await expect(
+        asAgent(() => fields.configure({ mappings: [{ property: 'threllName', field: 'Threll Name' }] })),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        asAgent(() =>
+          fields.configure({
+            mappings: [
+              { property: 'threllName', field: 'threll_name' },
+              { property: 'workerName', field: 'threll_name' },
+            ],
+          }),
+        ),
+      ).rejects.toThrow(/mapped twice/);
+    });
   });
 });

@@ -1,10 +1,11 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, count, desc, eq, gte, max, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, gte, inArray, isNotNull, max, ne, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { IdentityService } from '../identity/identity.service.ts';
 import { CONSENT_LAWFUL_BASES, CrmService, type ConsentLawfulBasis } from '../crm/crm.service.ts';
 import { normalizeIdentityEmail } from './visitor-identity.ts';
+import { mappingsForEvent, readProductEventFields, type ProductEventFieldMapping } from './product-event-fields.ts';
 import { KNOWN_EVENT_TYPES } from '@getmunin/types';
 
 export const PRODUCT_EVENT_NAME_PATTERN = /^[a-z0-9_.-]{1,64}$/;
@@ -60,7 +61,8 @@ export class ProductEventsService {
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(IdentityService) private readonly identity: IdentityService,
-    @Inject(CrmService) private readonly crm: Pick<CrmService, 'createContact' | 'setContactConsent'>,
+    @Inject(CrmService)
+    private readonly crm: Pick<CrmService, 'createContact' | 'setContactConsent' | 'updateContact'>,
   ) {}
 
   async record(events: readonly ProductEventInput[]): Promise<ProductEventResult[]> {
@@ -70,8 +72,10 @@ export class ProductEventsService {
       );
     }
     if (events.some((e) => e.consent)) assertMayRecordConsent();
+    const ctx = getCurrentContext();
+    const { mappings } = await readProductEventFields(ctx.db, ctx.actor!.orgId);
     const results: ProductEventResult[] = [];
-    for (const event of events) results.push(await this.recordOne(event));
+    for (const event of events) results.push(await this.recordOne(event, mappings));
     return results;
   }
 
@@ -93,7 +97,10 @@ export class ProductEventsService {
     }));
   }
 
-  private async recordOne(event: ProductEventInput): Promise<ProductEventResult> {
+  private async recordOne(
+    event: ProductEventInput,
+    mappings: readonly ProductEventFieldMapping[],
+  ): Promise<ProductEventResult> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const name = event.name.trim();
@@ -171,6 +178,7 @@ export class ProductEventsService {
     if (!row) {
       return { id: event.id, status: 'duplicate', eventId: null, contactId, endUserId };
     }
+    if (contactId) await this.copyFields(row.id, contactId, name, occurredAt, properties, mappings);
 
     await this.webhooks.emit({
       type: 'analytics.product_event.recorded',
@@ -193,6 +201,39 @@ export class ProductEventsService {
       endUserId,
       ...(consentResult ? { consent: consentResult } : {}),
     };
+  }
+
+  private async copyFields(
+    eventId: string,
+    contactId: string,
+    name: string,
+    occurredAt: Date,
+    properties: Record<string, unknown>,
+    mappings: readonly ProductEventFieldMapping[],
+  ): Promise<void> {
+    const matches = mappingsForEvent(mappings, name, properties);
+    if (matches.length === 0) return;
+    const ctx = getCurrentContext();
+    const t = schema.analyticsProductEvents;
+    const customFields: Record<string, string> = {};
+    for (const { mapping, value } of matches) {
+      const [newer] = await ctx.db
+        .select({ id: t.id })
+        .from(t)
+        .where(
+          and(
+            eq(t.contactId, contactId),
+            ne(t.id, eventId),
+            gt(t.occurredAt, occurredAt),
+            isNotNull(sql`${t.properties} -> ${mapping.property}`),
+            mapping.events ? inArray(t.name, mapping.events) : undefined,
+          ),
+        )
+        .limit(1);
+      if (!newer) customFields[mapping.field] = value;
+    }
+    if (Object.keys(customFields).length === 0) return;
+    await this.crm.updateContact({ id: contactId, patch: { customFields } });
   }
 
   private async applyConsent(

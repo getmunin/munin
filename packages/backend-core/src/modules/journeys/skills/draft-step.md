@@ -25,7 +25,7 @@ A journey wants to send one person a message, and its author asked for it to be 
    - **Call opening** — the first thing the voice agent says, at most 1000 characters, written to be spoken: short sentences, no markdown, no URLs.
 3. Personalise with what the inputs actually show — the plan they are on, what they did or did not do — and nothing you would have to guess.
 4. Keep the author's call to action. Do not add offers, discounts, deadlines or claims the brief does not mention.
-5. Use `{{name}}` where the reference does; it is filled in when the message is sent.
+5. Keep the merge fields the reference uses — `{{name}}` and `{{contact.custom_fields.<field>|fallback}}` — exactly as written, fallback included; they are filled in when the message is sent. Never put one inside a link URL.
 
 ## Submit
 

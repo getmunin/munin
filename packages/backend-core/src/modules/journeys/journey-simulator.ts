@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
@@ -7,6 +7,7 @@ import { evaluateCondition } from './journey-conditions.ts';
 import { stableBucket } from './journey-time.ts';
 import { JourneyRuntimeService } from './journey-runtime.service.ts';
 import { checkSendPolicy } from '../outreach/send-policy.ts';
+import { personalizeLine, personalizeText, type MergeValues } from '../outreach/merge-fields.ts';
 
 const MAX_STEPS = 100;
 
@@ -25,6 +26,7 @@ export interface SimulatedMessage {
   contactName: string | null;
   channel: 'email' | 'sms' | 'voice' | 'chat';
   subject: string | null;
+  preheader?: string | null;
   body?: string;
   decision: string;
   reason: string | null;
@@ -114,7 +116,7 @@ export class JourneySimulator {
             withoutLawfulBasis.set(node.id, people.add(contact.id));
           }
           if (node.type === 'message' && node.channel === 'email' && rendered < (input.renderSamples ?? 3) && step.message.decision !== 'skip') {
-            step.message.html = await this.renderSample(node, contact);
+            step.message.html = (await this.renderEmailSample(node, contact)).html;
             rendered += 1;
           }
           if (result.messages.length < 20) result.messages.push(step.message);
@@ -164,13 +166,19 @@ export class JourneySimulator {
             cooldownHoursAfterConversation: settings.cooldownHoursAfterConversation,
           },
         });
+        const merge = mergeValuesFor(contact);
         const message: SimulatedMessage = {
           nodeId: node.id,
           contactId: contact.id,
           contactName: contact.name,
           channel: node.channel,
-          subject: node.content.subject ?? null,
-          ...(node.channel === 'sms' || node.channel === 'chat' ? { body: node.content.body } : {}),
+          subject: node.content.subject ? personalizeLine(node.content.subject, merge) : null,
+          ...(node.channel === 'email' && node.content.preheader
+            ? { preheader: personalizeLine(node.content.preheader, merge) }
+            : {}),
+          ...(node.channel === 'sms' || node.channel === 'chat'
+            ? { body: personalizeText(node.content.body, merge) }
+            : {}),
           decision: decision.decision,
           reason: decision.decision === 'send' ? null : decision.reason,
         };
@@ -308,7 +316,7 @@ export class JourneySimulator {
     const ctx = getCurrentContext();
     if (input.spec.entry.subject === 'company') return this.pickCompanies(input, limit);
     const c = schema.crmContacts;
-    const columns = { id: c.id, name: c.name, endUserId: c.endUserId };
+    const columns = { id: c.id, name: c.name, endUserId: c.endUserId, customFields: c.customFields };
     if (input.contactIds?.length) {
       const rows = await ctx.db
         .select(columns)
@@ -369,7 +377,23 @@ export class JourneySimulator {
     return { source: 'recent', segmentId: null, contacts: await load(recent.map((r) => r.id)) };
   }
 
-  private async renderSample(node: Extract<JourneyNode, { type: 'message' }>, contact: SampleContact): Promise<string> {
+  async sampleContact(spec: JourneySpec, journeyId: string, contactId?: string): Promise<SampleContact | null> {
+    if (spec.entry.subject === 'company' && !contactId) {
+      throw new BadRequestException('journeys_invalid: a company journey has no sample person; pass contactId');
+    }
+    const asContacts = { ...spec, entry: { ...spec.entry, subject: 'contact' as const } };
+    const picked = await this.pickSample(
+      { journeyId, spec: asContacts, contactIds: contactId ? [contactId] : undefined },
+      1,
+    );
+    return picked.contacts[0] ?? null;
+  }
+
+  async renderEmailSample(
+    node: Extract<JourneyNode, { type: 'message' }>,
+    contact: SampleContact,
+    opts: { unsubscribeUrl?: string } = {},
+  ): Promise<{ html: string; text: string; subject: string }> {
     const ctx = getCurrentContext();
     const { renderEmail, BUILT_IN_EMAIL_TEMPLATE } = await import('../outreach/email-template-render.ts');
     const t = schema.outreachEmailTemplates;
@@ -383,26 +407,33 @@ export class JourneySimulator {
       .from(schema.orgs)
       .where(eq(schema.orgs.id, ctx.actor!.orgId))
       .limit(1);
+    const merge = { ...mergeValuesFor(contact), orgName: org?.name ?? null };
+    const subject = personalizeLine(node.content.subject ?? '', merge);
     const rendered = await renderEmail(
       template?.mjml ?? BUILT_IN_EMAIL_TEMPLATE,
       { format: node.content.format, body: node.content.body },
       {
-        subject: node.content.subject ?? '',
-        preheader: node.content.preheader ?? null,
-        name: contact.name,
-        orgName: org?.name ?? null,
-        unsubscribeUrl: node.class === 'marketing' ? 'https://example.invalid/unsubscribe' : null,
+        ...merge,
+        subject,
+        preheader: node.content.preheader ? personalizeLine(node.content.preheader, merge) : null,
+        unsubscribeUrl:
+          opts.unsubscribeUrl ?? (node.class === 'marketing' ? 'https://example.invalid/unsubscribe' : null),
       },
     );
-    return rendered.html;
+    return { html: rendered.html, text: rendered.text, subject };
   }
 }
 
-interface SampleContact {
+export interface SampleContact {
   id: string;
   name: string | null;
   endUserId: string | null;
+  customFields?: Record<string, unknown> | null;
   kind?: 'company';
+}
+
+function mergeValuesFor(contact: SampleContact): MergeValues {
+  return { name: contact.name?.trim() ?? null, customFields: contact.customFields ?? null };
 }
 
 function sampleKey(subject: SampleContact): string {

@@ -10,6 +10,7 @@ import {
   type JourneySpec,
 } from '@getmunin/types';
 import { collectConditionNeeds } from './journey-conditions.ts';
+import { checkMessageMergeFields } from './journey-merge-fields.ts';
 
 export interface JourneyIssue {
   code: string;
@@ -231,6 +232,7 @@ function checkNode(
 ): void {
   switch (node.type) {
     case 'message':
+      checkMessageMergeFields(node, errors, warnings);
       if (node.channel !== 'chat' && (node.onUnseen || node.seenTimeout)) {
         errors.push({ code: 'unseen_edges', nodeId: node.id, message: 'onUnseen and seenTimeout apply to chat steps only' });
       }

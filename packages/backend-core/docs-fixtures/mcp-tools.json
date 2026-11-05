@@ -1153,6 +1153,85 @@
     }
   },
   {
+    "name": "analytics_get_product_event_fields",
+    "title": "Analytics: Get product event field mappings",
+    "description": "Show which product event properties are copied onto the contact's custom fields when an event arrives on POST /v1/events (for example `threllName` → `threll_name`), and whether the org has configured any.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_configure_product_event_fields",
+    "title": "Analytics: Configure product event field mappings",
+    "description": "Replace the list of product event properties copied onto contact custom fields. When an event that resolves to a contact carries a mapped property with a string, number or boolean value, the value is written to the custom field; an older event never overwrites a value from a newer one. Only events recorded after the change are copied. Pass an empty list to stop copying.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "mappings": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "property": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "description": "Top-level key in the event's `properties`, e.g. \"threllName\"."
+              },
+              "field": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "description": "Contact custom field to write, e.g. \"threll_name\"."
+              },
+              "events": {
+                "description": "Only copy from these event names; leave out to copy from any event that carries the property.",
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_.-]{1,64}$"
+                }
+              }
+            },
+            "required": [
+              "property",
+              "field"
+            ],
+            "additionalProperties": false
+          },
+          "description": "The complete list of mappings; it replaces the current one. Pass [] to stop copying."
+        }
+      },
+      "required": [
+        "mappings"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "crm_list_contacts",
     "title": "CRM: List contacts",
     "description": "List contacts in your org, newest-updated first. Filter by company or tag.",
@@ -10697,6 +10776,55 @@
       },
       "required": [
         "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_send_test",
+    "title": "Journeys: Send a test email for a step",
+    "description": "Send one email step of a journey version (the open draft by default) to a member of this organization, rendered exactly as it would be sent, with merge fields filled in from a sample contact (contactId, else the first contact the simulation would pick) and \"[Test]\" before the subject. No proposal, conversation or enrollment is created. Without `to` the test goes to the signed-in member.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "nodeId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,47}$"
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 320,
+          "format": "email",
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "contactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "journeyId",
+        "nodeId"
       ],
       "additionalProperties": false
     }

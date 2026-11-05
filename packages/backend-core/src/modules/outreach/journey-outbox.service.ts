@@ -21,6 +21,7 @@ import {
 import { OutreachInvalidError } from './outreach-errors.ts';
 import { assertEligible } from './eligibility.ts';
 import { emailTemplateHash } from './email-template-hash.ts';
+import { personalizeLine } from './merge-fields.ts';
 import { checkSendPolicy, type SendDecision, type SendPolicy } from './send-policy.ts';
 import {
   parseJourneyDelivery,
@@ -330,14 +331,16 @@ export class JourneyOutboxService implements ProposalKindHandler {
       .from(schema.orgs)
       .where(eq(schema.orgs.id, actor.orgId))
       .limit(1);
+    const mergeValues = { name: contact.name, orgName: org?.name ?? null, customFields: contact.customFields };
+    const subject = proposal.draftSubject === null ? null : personalizeLine(proposal.draftSubject, mergeValues);
+    const preheader = delivery.preheader ? personalizeLine(delivery.preheader, mergeValues) : delivery.preheader;
     const rendered = await renderEmail(
       mjml,
       { format: delivery.format, body: proposal.draftBody },
       {
-        subject: proposal.draftSubject,
-        preheader: delivery.preheader,
-        orgName: org?.name ?? null,
-        name: contact.name,
+        ...mergeValues,
+        subject,
+        preheader,
         unsubscribeUrl,
       },
     );
@@ -373,7 +376,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
         channelId: channel.id,
         body: rendered.text,
         bodyHtml: rendered.html,
-        subject: proposal.draftSubject ?? undefined,
+        subject: subject ?? undefined,
         contactId: convContact.id,
         endUserId: contact.endUserId ?? undefined,
         outreachCampaignId: proposal.campaignId ?? undefined,
@@ -411,7 +414,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
     if (!contact.phone) throw new OutreachInvalidError(`contact ${contact.id} has no phone — cannot send`);
 
     const body = composeSmsOutreachBody({
-      draftBody: personalizeSms(proposal.draftBody, contact.name),
+      draftBody: personalizeSms(proposal.draftBody, contact),
       ctaUrl: null,
       unsubscribeRequired: delivery.policy.class === 'marketing',
     });
@@ -496,7 +499,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
       throw new OutreachInvalidError(`contact ${contact.id} has no signed-in widget identity to write to`);
     }
 
-    const body = personalizeSms(proposal.draftBody, contact.name);
+    const body = personalizeSms(proposal.draftBody, contact);
     const messageMetadata = { journeyStepRunId: proposal.journeyStepRunId };
     const approvedOutreachProposalId = proposal.decidedByActorType === 'user' ? proposal.id : undefined;
     const threadId = await this.channelThread(proposal.contactId, channelId, { endUserId: contact.endUserId });

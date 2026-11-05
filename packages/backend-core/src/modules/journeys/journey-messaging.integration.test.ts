@@ -334,6 +334,68 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect((await enrollment(id)).state).toBe('done');
   });
 
+  it('fills contact custom fields into the subject and body when the email is sent, escaped, with the fallback for contacts without one', async () => {
+    const journeyId = await publish([
+      welcome({
+        approval: 'auto',
+        content: {
+          subject: 'Du har hørt {{contact.custom_fields.threll_name|threllen din}}',
+          preheader: 'Neste steg for {{contact.custom_fields.threll_name|threllen din}}',
+          body: 'Nå har du hørt **{{contact.custom_fields.threll_name|threllen din}}** i aksjon.',
+        },
+      }),
+      done,
+    ]);
+    const named = await contact({ customFields: { threll_name: 'Resepsjonen' } });
+    const unnamed = await contact();
+    const tricky = await contact({ customFields: { threll_name: 'Ola & <Kari> "AS"' } });
+    const renamed = await contact({ customFields: { threll_name: 'Resepsjonen' } });
+    const ids = [
+      await enroll(journeyId, named.id),
+      await enroll(journeyId, unnamed.id),
+      await enroll(journeyId, tricky.id),
+      await enroll(journeyId, renamed.id),
+    ];
+    await db
+      .update(schema.crmContacts)
+      .set({ customFields: { threll_name: 'Thea' } })
+      .where(eq(schema.crmContacts.id, renamed.id));
+    await worker.tick();
+    await worker.tick();
+
+    const sent = async (enrollmentId: string) => {
+      const row = await enrollment(enrollmentId);
+      expect(row.state).toBe('done');
+      const [conversation] = await db
+        .select()
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, row.conversationId!));
+      const [message] = await db
+        .select()
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.conversationId, row.conversationId!));
+      return { subject: conversation!.subject, html: message!.bodyHtml!, text: message!.body };
+    };
+
+    const forNamed = await sent(ids[0]!);
+    expect(forNamed.subject).toBe('Du har hørt Resepsjonen');
+    expect(forNamed.html).toContain('<strong>Resepsjonen</strong>');
+    expect(forNamed.html).toContain('Neste steg for Resepsjonen');
+    expect(forNamed.html).not.toContain('{{');
+
+    const forUnnamed = await sent(ids[1]!);
+    expect(forUnnamed.subject).toBe('Du har hørt threllen din');
+    expect(forUnnamed.html).toContain('<strong>threllen din</strong>');
+
+    const forTricky = await sent(ids[2]!);
+    expect(forTricky.subject).toBe('Du har hørt Ola & <Kari> "AS"');
+    expect(forTricky.html).toContain('<strong>Ola &amp; &lt;Kari&gt; &quot;AS&quot;</strong>');
+    expect(forTricky.html).not.toContain('<Kari>');
+    expect(forTricky.text).toContain('Ola & <Kari> "AS"');
+
+    expect((await sent(ids[3]!)).subject).toBe('Du har hørt Thea');
+  });
+
   it('withdraws a run\'s open emails when it ends, and refuses to send one for an ended run', async () => {
     const journeyId = await publish([welcome(), done]);
     const ola = await contact();

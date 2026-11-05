@@ -306,3 +306,70 @@ describe('journey validator', () => {
     expect(validateJourneySpec(spec, refs).errors.map((e) => e.code)).toEqual(['agent_fields']);
   });
 });
+
+describe('journey message merge fields', () => {
+  function withWelcome(content: Record<string, unknown>, channel = 'email') {
+    const spec = trialSpec();
+    spec.nodes[0] = { ...spec.nodes[0], channel, content } as (typeof spec.nodes)[number];
+    return check(spec);
+  }
+
+  it('accepts a custom field with a fallback in subject, preheader and body', () => {
+    const result = withWelcome({
+      subject: 'Du har hørt {{contact.custom_fields.threll_name|threllen din}}',
+      preheader: 'Neste steg for {{contact.custom_fields.threll_name|threllen din}}',
+      body: 'Hei {{name|der}}, {{contact.custom_fields.threll_name|threllen din}} er klar. [Åpne](https://acme.test/home)',
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('warns about a custom field without a fallback', () => {
+    const result = withWelcome({ subject: 'Hei', body: 'Hei {{contact.custom_fields.threll_name}}' });
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toEqual([
+      expect.objectContaining({ code: 'merge_field_no_fallback', nodeId: 'welcome', path: 'content.body' }),
+    ]);
+  });
+
+  it('refuses a custom field inside a link url', () => {
+    for (const body of [
+      '[Åpne](https://acme.test/{{contact.custom_fields.threll_name|x}})',
+      '<mj-section><mj-column><mj-text><a href="https://acme.test/?n={{contact.custom_fields.threll_name|x}}">Åpne</a></mj-text></mj-column></mj-section>',
+      'Gå til https://acme.test/{{contact.custom_fields.threll_name|x}} nå',
+    ]) {
+      const format = body.startsWith('<mj') ? 'mjml' : 'markdown';
+      expect(withWelcome({ subject: 'Hei', body, format }).errors.map((e) => e.code)).toEqual(['merge_field_in_link']);
+    }
+    expect(
+      withWelcome({ subject: 'Hei', body: '[{{contact.custom_fields.threll_name|din threll}}](https://acme.test/home)' })
+        .errors,
+    ).toEqual([]);
+  });
+
+  it('refuses placeholders an email cannot fill and only warns for sms', () => {
+    const email = withWelcome({ subject: 'Hei {{first_name}}', body: 'Hei {{org_name|Acme}}' });
+    expect(email.errors.map((e) => [e.code, e.path])).toEqual([
+      ['unknown_merge_field', 'content.subject'],
+      ['unknown_merge_field', 'content.body'],
+    ]);
+
+    const sms = check(
+      trialSpec({
+        nodes: [
+          {
+            id: 'welcome',
+            type: 'message',
+            channel: 'sms',
+            approval: 'draft_only',
+            content: { body: 'Hei {{first_name}}, {{contact.custom_fields.threll_name}}' },
+            next: 'done',
+          },
+          { id: 'done', type: 'exit' },
+        ],
+      }),
+    );
+    expect(sms.errors.map((e) => e.code)).not.toContain('unknown_merge_field');
+    expect(sms.warnings.map((w) => w.code)).toEqual(['unknown_merge_field', 'merge_field_no_fallback']);
+  });
+});

@@ -2,6 +2,14 @@ import mjml2html from 'mjml';
 import { renderMarkdownToHtml } from '../conv/email/markdown.ts';
 import { htmlToText } from '../conv/email/html-text.ts';
 import { OutreachInvalidError } from './outreach.service.ts';
+import {
+  MERGE_PLACEHOLDER,
+  blankCustomFieldsInUrls,
+  contentPlaceholderProblem,
+  listContentPlaceholders,
+  resolvePlaceholder,
+  type MergeValues,
+} from './merge-fields.ts';
 
 export const EMAIL_CONTENT_FORMATS = ['markdown', 'mjml'] as const;
 export type EmailContentFormat = (typeof EMAIL_CONTENT_FORMATS)[number];
@@ -11,13 +19,7 @@ export interface EmailContent {
   body: string;
 }
 
-export interface EmailRenderValues {
-  subject?: string | null;
-  preheader?: string | null;
-  orgName?: string | null;
-  name?: string | null;
-  unsubscribeUrl?: string | null;
-}
+export type EmailRenderValues = MergeValues;
 
 export interface CompiledEmail {
   html: string;
@@ -39,8 +41,6 @@ export const TEMPLATE_PLACEHOLDERS = [
   'org_name',
   'name',
 ] as const;
-
-const CONTENT_PLACEHOLDERS = ['subject', 'org_name', 'name'] as const;
 
 export const BUILT_IN_EMAIL_TEMPLATE = `<mjml>
   <mj-head>
@@ -66,7 +66,7 @@ export const BUILT_IN_EMAIL_TEMPLATE = `<mjml>
 
 export const GMAIL_CLIP_WARNING_BYTES = 90_000;
 
-const PLACEHOLDER = /\{\{\s*([^{}|\s]+)\s*(?:\|([^{}]*))?\}\}/g;
+const PLACEHOLDER = MERGE_PLACEHOLDER;
 const UNSUBSCRIBE_IN_HREF = /href\s*=\s*(["'])\s*\{\{\s*unsubscribe_url\s*\}\}\s*\1/i;
 const CONTENT_PROBE = '<mj-section><mj-column><mj-text>Preview</mj-text></mj-column></mj-section>';
 
@@ -139,11 +139,10 @@ export function personalizeEmail(
   compiledHtml: string,
   values: EmailRenderValues,
 ): { html: string; text: string } {
-  const html = compiledHtml.replace(PLACEHOLDER, (_match, rawName: string, fallback?: string) => {
-    const value = placeholderValue(rawName, values);
-    const chosen = value?.trim() ? value : (fallback ?? '').trim();
-    return escapeHtml(chosen);
-  });
+  const html = blankCustomFieldsInUrls(compiledHtml).replace(
+    PLACEHOLDER,
+    (_match, rawName: string, fallback?: string) => escapeHtml(resolvePlaceholder(rawName, fallback, values)),
+  );
   return { html, text: htmlToText(html) };
 }
 
@@ -160,23 +159,6 @@ export async function renderEmail(
     htmlBytes: Buffer.byteLength(html, 'utf8'),
     warnings: compiled.warnings,
   };
-}
-
-function placeholderValue(name: string, values: EmailRenderValues): string | null | undefined {
-  switch (name) {
-    case 'unsubscribe_url':
-      return values.unsubscribeUrl;
-    case 'preheader':
-      return values.preheader;
-    case 'subject':
-      return values.subject;
-    case 'org_name':
-      return values.orgName;
-    case 'name':
-      return values.name;
-    default:
-      return '';
-  }
 }
 
 function assertTemplatePlaceholders(mjml: string): void {
@@ -206,16 +188,9 @@ function assertTemplatePlaceholders(mjml: string): void {
 }
 
 function assertContentPlaceholders(body: string): void {
-  for (const match of body.matchAll(PLACEHOLDER)) {
-    const name = match[1]!;
-    if (!(CONTENT_PLACEHOLDERS as readonly string[]).includes(name)) {
-      throw new OutreachInvalidError(
-        `content may not use {{${name}}}; content placeholders are ${CONTENT_PLACEHOLDERS.map((p) => `{{${p}}}`).join(', ')}`,
-      );
-    }
-    if (match[2] !== undefined && name !== 'name') {
-      throw new OutreachInvalidError(`only {{name}} takes a fallback; {{${name}|…}} is not supported`);
-    }
+  for (const placeholder of listContentPlaceholders(body)) {
+    const problem = contentPlaceholderProblem(placeholder);
+    if (problem) throw new OutreachInvalidError(problem);
   }
 }
 

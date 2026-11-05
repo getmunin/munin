@@ -8,6 +8,7 @@ import { JourneyPublishingService } from './journey-publishing.service.ts';
 import { JourneyTemplatesService } from './journey-templates.service.ts';
 import { JourneyMonitorService } from './journey-monitor.service.ts';
 import { JourneyTemplateChangesService } from './journey-template-changes.service.ts';
+import { JourneyTestSendService } from './journey-test-send.service.ts';
 
 const Id = z.string().min(1).max(64);
 const NodeIdInput = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
@@ -28,7 +29,7 @@ const NODE_TYPE_REFERENCE = [
   {
     type: 'message',
     does: 'Send the contact an email, an SMS, a chat message in the widget or a phone call. approval: draft_only (default, filed for human review), auto (email, chat and transactional SMS: sends without review once a person publishes the version; agent-drafted steps only after they earn it) or off (skipped). Marketing SMS and calls are always approved by a person.',
-    fields: '{ channel: "email"|"sms"|"chat"|"voice", class?: "marketing"|"transactional", content: { subject (email only), body, format?: "markdown"|"mjml", preheader?, templateId? }, approval?, next?, onReply?, onOutcome? (voice: reached, no_contact, refused, wrong_contact, timeout), outcomeTimeout?, onUnseen? + seenTimeout? (chat), recipients?: { tag?, titleContains?, max? } (company journeys only), draftBy?: "agent", brief?, grounding?: [kb space slugs], locale?, draftInputs?, draftTimeout?: "PT30M" } — sms needs settings.smsChannelId (body ≤ 480), chat settings.chatChannelId (body ≤ 2000, signed-in widget visitors only), voice settings.voiceChannelId (body is the opening, ≤ 1000); with draftBy "agent" a model rewrites the message for each person from the brief (content is the reference version and the fallback)',
+    fields: '{ channel: "email"|"sms"|"chat"|"voice", class?: "marketing"|"transactional", content: { subject (email only), body, format?: "markdown"|"mjml", preheader?, templateId? }, approval?, next?, onReply?, onOutcome? (voice: reached, no_contact, refused, wrong_contact, timeout), outcomeTimeout?, onUnseen? + seenTimeout? (chat), recipients?: { tag?, titleContains?, max? } (company journeys only), draftBy?: "agent", brief?, grounding?: [kb space slugs], locale?, draftInputs?, draftTimeout?: "PT30M" } — email subject, preheader and body and sms and chat bodies take merge fields filled in when the message is sent: {{name|fallback}}, {{org_name}}, {{subject}} (email) and {{contact.custom_fields.<field>|fallback}}, the contact\'s custom field at send time, HTML-escaped, never inside a link URL, with the fallback (or an empty string) when the field is missing or blank; sms needs settings.smsChannelId (body ≤ 480), chat settings.chatChannelId (body ≤ 2000, signed-in widget visitors only), voice settings.voiceChannelId (body is the opening, ≤ 1000); with draftBy "agent" a model rewrites the message for each person from the brief (content is the reference version and the fallback)',
   },
   {
     type: 'action',
@@ -90,6 +91,7 @@ export class JourneysTools {
     @Inject(JourneyTemplatesService) private readonly templates: JourneyTemplatesService,
     @Inject(JourneyMonitorService) private readonly monitor: JourneyMonitorService,
     @Inject(JourneyTemplateChangesService) private readonly templateChanges: JourneyTemplateChangesService,
+    @Inject(JourneyTestSendService) private readonly testSend: JourneyTestSendService,
   ) {}
 
   @McpTool({
@@ -239,6 +241,25 @@ export class JourneysTools {
     renderSamples?: number;
   }) {
     return this.publishing.simulate(args);
+  }
+
+  @McpTool({
+    name: 'journeys_send_test',
+    title: 'Journeys: Send a test email for a step',
+    description:
+      'Send one email step of a journey version (the open draft by default) to a member of this organization, rendered exactly as it would be sent, with merge fields filled in from a sample contact (contactId, else the first contact the simulation would pick) and "[Test]" before the subject. No proposal, conversation or enrollment is created. Without `to` the test goes to the signed-in member.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: JourneyIdInput.extend({
+      nodeId: NodeIdInput,
+      to: z.email().max(320).optional(),
+      contactId: Id.optional(),
+      version: z.number().int().min(1).optional(),
+    }),
+    destructiveHint: true,
+  })
+  sendTest(args: { journeyId: string; nodeId: string; to?: string; contactId?: string; version?: number }) {
+    return this.testSend.sendTest(args);
   }
 
   @McpTool({

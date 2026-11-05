@@ -15,6 +15,8 @@ import { JourneyRuntimeWorker } from './journey-runtime.worker.ts';
 import { JourneyEventSink } from './journey-event.sink.ts';
 import { JourneySimulator } from './journey-simulator.ts';
 import { JourneyPublishingService } from './journey-publishing.service.ts';
+import { JourneyTestSendService } from './journey-test-send.service.ts';
+import type { BulkEmail } from '../conv/email/email-adapter.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
@@ -181,6 +183,78 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       publishing.simulate({ journeyId: journey.id, contactIds: [kari.id, liv.id] }),
     );
     expect(everyone.excluded).toEqual({ not_in_segment: 1 });
+  });
+
+  it('shows custom fields merged for the sample contact in simulate and in a test send', async () => {
+    const merged = spec({
+      start: 'welcome',
+      nodes: [
+        {
+          id: 'welcome',
+          type: 'message',
+          channel: 'email',
+          content: {
+            subject: 'Du har hørt {{contact.custom_fields.threll_name|threllen din}}',
+            preheader: 'Neste steg for {{contact.custom_fields.threll_name|threllen din}}',
+            body: 'Hei {{name}}, nå er **{{contact.custom_fields.threll_name|threllen din}}** klar.',
+          },
+          next: 'done',
+        },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const journey = await asAgent(() => journeys.create({ name: 'Trial', outreachCampaignId: campaignId, spec: merged }));
+    const kari = await contact('Kari', ['trial']);
+    await db
+      .update(schema.crmContacts)
+      .set({ customFields: { threll_name: 'Resepsjonen' } })
+      .where(eq(schema.crmContacts.id, kari.id));
+    const ola = await contact('Ola', ['trial']);
+
+    const simulated = await asAgent(() =>
+      publishing.simulate({ journeyId: journey.id, contactIds: [kari.id, ola.id], renderSamples: 2 }),
+    );
+    const byContact = new Map(simulated.messages.map((m) => [m.contactId, m]));
+    expect(byContact.get(kari.id)).toMatchObject({
+      subject: 'Du har hørt Resepsjonen',
+      preheader: 'Neste steg for Resepsjonen',
+    });
+    expect(byContact.get(kari.id)!.html).toContain('<strong>Resepsjonen</strong>');
+    expect(byContact.get(ola.id)).toMatchObject({ subject: 'Du har hørt threllen din' });
+    expect(byContact.get(ola.id)!.html).toContain('<strong>threllen din</strong>');
+
+    const sent: BulkEmail[] = [];
+    const testSend = new JourneyTestSendService(journeys, new JourneySimulator(runtime), {
+      sendBulk: (_channel, messages) => {
+        sent.push(...messages);
+        return Promise.resolve(messages.map((m) => ({ key: m.key, messageId: `<test-${m.key}@acme.test>`, error: null })));
+      },
+    });
+    await db.insert(schema.orgMembers).values({ orgId, userId, role: 'owner' });
+    try {
+      const result = await asPerson(() =>
+        testSend.sendTest({ journeyId: journey.id, nodeId: 'welcome', contactId: kari.id }),
+      );
+      expect(result).toMatchObject({ sent: true, contactId: kari.id, subject: '[Test] Du har hørt Resepsjonen' });
+      expect(sent[0]).toMatchObject({ subject: '[Test] Du har hørt Resepsjonen' });
+      expect(sent[0]!.to).toMatch(/^publisher-/);
+      expect(sent[0]!.html).toContain('Hei Kari, nå er <strong>Resepsjonen</strong> klar.');
+
+      await asPerson(() => testSend.sendTest({ journeyId: journey.id, nodeId: 'welcome', contactId: ola.id }));
+      expect(sent[1]!.html).toContain('<strong>threllen din</strong>');
+
+      await expect(
+        asPerson(() => testSend.sendTest({ journeyId: journey.id, nodeId: 'done', contactId: kari.id })),
+      ).rejects.toThrow(/not an email step/);
+      await expect(
+        asPerson(() =>
+          testSend.sendTest({ journeyId: journey.id, nodeId: 'welcome', to: 'someone@elsewhere.test' }),
+        ),
+      ).rejects.toThrow(/only to members/);
+      expect(sent).toHaveLength(2);
+    } finally {
+      await db.delete(schema.orgMembers).where(eq(schema.orgMembers.orgId, orgId));
+    }
   });
 
   it('publishes only after a signed-in person confirms the fingerprint they reviewed', async () => {

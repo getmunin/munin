@@ -8,6 +8,7 @@ import {
   validateEmailTemplate,
 } from './email-template-render.ts';
 import { OutreachInvalidError } from './outreach.service.ts';
+import { personalizeLine, personalizeText } from './merge-fields.ts';
 
 const TEMPLATE = `<mjml>
   <mj-head>
@@ -210,6 +211,87 @@ describe('personalizeEmail', () => {
 
     const anonymous = personalizeEmail(compiled.html, { name: null, unsubscribeUrl: UNSUBSCRIBE_URL });
     expect(anonymous.html).toContain('Hi there!');
+  });
+});
+
+describe('custom field merge tags', () => {
+  const THRELL = '{{contact.custom_fields.threll_name|threllen din}}';
+
+  it('fills a contact custom field and falls back when it is missing or blank', async () => {
+    const compiled = await compileEmail(TEMPLATE, { format: 'markdown', body: `Nå har du hørt ${THRELL} i aksjon.` });
+    const withName = personalizeEmail(compiled.html, { customFields: { threll_name: 'Resepsjonen' } });
+    expect(withName.html).toContain('Nå har du hørt Resepsjonen i aksjon.');
+    expect(withName.text).toContain('Nå har du hørt Resepsjonen i aksjon.');
+
+    for (const customFields of [{}, { threll_name: '   ' }, { threll_name: { nested: true } }, null]) {
+      const fallback = personalizeEmail(compiled.html, { customFields });
+      expect(fallback.html).toContain('Nå har du hørt threllen din i aksjon.');
+    }
+  });
+
+  it('renders numbers and booleans and leaves an unset field without fallback empty', async () => {
+    const compiled = await compileEmail(TEMPLATE, {
+      format: 'markdown',
+      body: 'Seats: {{contact.custom_fields.seats}}. Pilot: {{contact.custom_fields.pilot}}. Plan: [{{contact.custom_fields.plan}}]',
+    });
+    const html = personalizeEmail(compiled.html, { customFields: { seats: 3, pilot: false } }).html;
+    expect(html).toContain('Seats: 3. Pilot: false. Plan: []');
+  });
+
+  it('escapes a custom field value so it cannot break the html', async () => {
+    const compiled = await compileEmail(TEMPLATE, { format: 'markdown', body: `Hei fra ${THRELL}!` });
+    const rendered = personalizeEmail(compiled.html, {
+      customFields: { threll_name: `Ola & <Kari> "AS" 'x'` },
+    });
+    expect(rendered.html).toContain('Hei fra Ola &amp; &lt;Kari&gt; &quot;AS&quot; &#39;x&#39;!');
+    expect(rendered.html).not.toContain('<Kari>');
+    expect(rendered.text).toContain(`Hei fra Ola & <Kari> "AS" 'x'!`);
+  });
+
+  it('never merges a custom field into a link url', async () => {
+    const mjml = await compileEmail(TEMPLATE, {
+      format: 'mjml',
+      body: '<mj-section><mj-column><mj-text><a href="https://acme.test/?t={{contact.custom_fields.threll_name}}">{{contact.custom_fields.threll_name|din threll}}</a></mj-text></mj-column></mj-section>',
+    });
+    const html = personalizeEmail(mjml.html, {
+      customFields: { threll_name: 'Resepsjonen' },
+      unsubscribeUrl: UNSUBSCRIBE_URL,
+    }).html;
+    expect(html).toContain('href="https://acme.test/?t="');
+    expect(html).toContain('>Resepsjonen</a>');
+    expect(html).toContain(`href="${UNSUBSCRIBE_URL.replaceAll('&', '&amp;')}"`);
+
+    const markdown = await compileEmail(TEMPLATE, {
+      format: 'markdown',
+      body: '[Åpne](https://acme.test/{{contact.custom_fields.threll_name}})',
+    });
+    expect(personalizeEmail(markdown.html, { customFields: { threll_name: 'Resepsjonen' } }).html).not.toContain(
+      'Resepsjonen',
+    );
+  });
+
+  it('rejects a malformed custom field tag and fallbacks on other placeholders', async () => {
+    expect(
+      await invalid(compileEmail(TEMPLATE, { format: 'markdown', body: 'Hi {{contact.custom_fields.}}' })),
+    ).toMatch(/not a valid custom field/);
+    expect(
+      await invalid(compileEmail(TEMPLATE, { format: 'markdown', body: 'Hi {{org_name|Acme}}' })),
+    ).toMatch(/only \{\{name\}\} and/);
+  });
+});
+
+describe('personalizeText and personalizeLine', () => {
+  it('merges plain text without escaping and keeps a subject on one line', () => {
+    const values = { name: 'Kari', customFields: { threll_name: 'Ola & <Kari>\nBcc: x@example.com' } };
+    expect(personalizeText('Hei {{name}}, {{contact.custom_fields.threll_name|threllen din}}\nlinje 2', values)).toBe(
+      'Hei Kari, Ola & <Kari>\nBcc: x@example.com\nlinje 2',
+    );
+    expect(personalizeLine('Du har hørt {{contact.custom_fields.threll_name|threllen din}}', values)).toBe(
+      'Du har hørt Ola & <Kari> Bcc: x@example.com',
+    );
+    expect(personalizeLine('Du har hørt {{contact.custom_fields.threll_name|threllen din}}', {})).toBe(
+      'Du har hørt threllen din',
+    );
   });
 });
 

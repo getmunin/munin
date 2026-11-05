@@ -65,6 +65,7 @@ import { checkSendPolicy, type SendDecision } from './send-policy.ts';
 import { OutreachInvalidError } from './outreach-errors.ts';
 import { assertDeliverable, assertEligible } from './eligibility.ts';
 import { buildProposalDeltaCurationPrompt } from './curation-job.ts';
+import { personalizeText } from './merge-fields.ts';
 import {
   CuratorJobsService,
   type EnqueueInput,
@@ -2591,11 +2592,11 @@ function composeOutreachBody(input: {
   return body;
 }
 
-export function personalizeSms(text: string, name: string | null): string {
-  return text.replace(/\{\{\s*([^{}|\s]+)\s*(?:\|([^{}]*))?\}\}/g, (_match, field: string, fallback?: string) => {
-    const value = field === 'name' ? name?.trim() : '';
-    return value || (fallback ?? '').trim();
-  });
+export function personalizeSms(
+  text: string,
+  contact: { name: string | null; customFields?: Record<string, unknown> | null },
+): string {
+  return personalizeText(text, { name: contact.name?.trim() ?? null, customFields: contact.customFields });
 }
 
 function sequencesRetired(): OutreachInvalidError {

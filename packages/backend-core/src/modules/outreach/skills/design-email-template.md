@@ -28,7 +28,7 @@ Content comes in two formats:
 - **`markdown`** becomes one section containing a single `<mj-text>`. Style it from the template's `<mj-attributes>` (font, size, colour, line height), so plain markdown content picks up the brand without carrying any styling itself.
 - **`mjml`** is a fragment of `<mj-section>` or `<mj-wrapper>` elements (no `<mjml>`, `<mj-head>` or `<mj-body>`). Use it for layouts markdown can't express: release cards, a hero image, a two-column feature row, buttons.
 
-Content may use `{{name}}`, `{{org_name}}` and `{{subject}}`, but not `{{content}}` or `{{unsubscribe_url}}`.
+Content may use `{{name}}`, `{{org_name}}` and `{{subject}}`, but not `{{content}}` or `{{unsubscribe_url}}`. Journey email content may also use `{{contact.custom_fields.<field>|fallback}}`, the recipient's custom field at send time (escaped, the fallback when it is missing or blank, never filled in inside a link URL); templates may not.
 
 **Refused outright**, in templates and in MJML content alike: `<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>` and other form controls, `<base>`, `<meta>`, `<link>`, inline event handlers (`onclick=`, `onerror=` …), `javascript:`, `vbscript:` and `data:` URLs, CSS `@import`, CSS `expression()`, and `<mj-include>`. Declare web fonts with `<mj-font>`. Host images at a public https URL; a CMS asset works well (`cms_upload_asset_from_url`, then use its `url`). Inline `data:` images are refused because Gmail and Outlook block them.
 

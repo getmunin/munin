@@ -752,6 +752,7 @@ export class WidgetIngestService {
         body: schema.convMessages.body,
         authorType: schema.convMessages.authorType,
         createdAt: schema.convMessages.createdAt,
+        metadata: schema.convMessages.metadata,
       })
       .from(schema.convMessages)
       .where(
@@ -764,6 +765,7 @@ export class WidgetIngestService {
 
     const out = new Map<string, { lastBody: string; firstUserBody: string | null }>();
     for (const r of rows) {
+      if (r.metadata.voiceNoSpeech === true) continue;
       const cur = out.get(r.conversationId) ?? { lastBody: '', firstUserBody: null as string | null };
       cur.lastBody = singleLinePreview(r.body);
       if (cur.firstUserBody === null && r.authorType === 'end_user') {

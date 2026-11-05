@@ -10,6 +10,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { ActorIdentity, ResolvedCredential } from '@getmunin/core';
 import { schema, type Db } from '@getmunin/db';
+import type { SupportedScope } from '@getmunin/types';
 import { and, eq, sql } from 'drizzle-orm';
 import { DB } from '../db/db.module.ts';
 
@@ -18,7 +19,7 @@ export const AllowMember = (): MethodDecorator & ClassDecorator =>
   SetMetadata(ALLOW_MEMBER, true);
 
 export const CONTROL_PLANE_SCOPE = 'munin:control-plane-scope';
-export const AdmitAdminKeyScope = (scope: string): MethodDecorator & ClassDecorator =>
+export const AdmitAdminKeyScope = (scope: SupportedScope): MethodDecorator & ClassDecorator =>
   SetMetadata(CONTROL_PLANE_SCOPE, scope);
 
 export const MEMBER_FORBIDDEN_CODE = 'member_forbidden';

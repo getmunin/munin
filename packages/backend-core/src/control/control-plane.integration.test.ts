@@ -569,6 +569,51 @@ interface OrgFixture {
       expect(publish.status).toBe(403);
     });
 
+    it('a "conv:read" key can list conversations but cannot assign one (class default is conv:write)', async () => {
+      const convReadKey = buildApiKey('admin');
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'admin',
+        name: 'cp-fine-conv-read',
+        keyHash: hashSecret(convReadKey),
+        keyPrefix: keyPrefix(convReadKey),
+        scopes: ['conv:read'],
+      });
+
+      const list = await fetch(`${baseUrl}/v1/conversations`, { headers: authHeaders(convReadKey) });
+      expect(list.status).toBe(200);
+
+      const assign = await fetch(`${baseUrl}/v1/conversations/missing/assign`, {
+        method: 'POST',
+        headers: authHeaders(convReadKey),
+        body: JSON.stringify({ assigneeUserId: 'usr_missing' }),
+      });
+      expect(assign.status).toBe(403);
+    });
+
+    it('a "conv:write"-only key cannot list conversations (GET overrides the class default down to conv:read)', async () => {
+      const convWriteKey = buildApiKey('admin');
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'admin',
+        name: 'cp-fine-conv-write',
+        keyHash: hashSecret(convWriteKey),
+        keyPrefix: keyPrefix(convWriteKey),
+        scopes: ['conv:write'],
+      });
+
+      const list = await fetch(`${baseUrl}/v1/conversations`, { headers: authHeaders(convWriteKey) });
+      expect(list.status).toBe(403);
+
+      const assign = await fetch(`${baseUrl}/v1/conversations/missing/assign`, {
+        method: 'POST',
+        headers: authHeaders(convWriteKey),
+        body: JSON.stringify({ assigneeUserId: 'usr_missing' }),
+      });
+      expect(assign.status).not.toBe(403);
+      expect(assign.status).not.toBe(401);
+    });
+
     it('a route gated by @RequireRole stays "*"-only no matter which module scopes a key holds (conv:read/:write included)', async () => {
       const convKey = buildApiKey('admin');
       await db.insert(schema.apiKeys).values({
@@ -618,6 +663,89 @@ interface OrgFixture {
         headers: authHeaders(everyModuleScopeKey),
       });
       expect(invitations.status).toBe(403);
+    });
+  });
+
+
+  describe('fine-grained scopes on outreach email templates (full read/write round trip)', () => {
+    const TEMPLATE = `<mjml>
+  <mj-body>
+    {{content}}
+    <mj-section>
+      <mj-column>
+        <mj-text>{{org_name}} · <a href="{{unsubscribe_url}}">Unsubscribe</a></mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>`;
+
+    let outreachReadKey: string;
+    let outreachWriteKey: string;
+
+    beforeAll(async () => {
+      outreachReadKey = buildApiKey('admin');
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'admin',
+        name: 'cp-fine-outreach-read',
+        keyHash: hashSecret(outreachReadKey),
+        keyPrefix: keyPrefix(outreachReadKey),
+        scopes: ['outreach:read'],
+      });
+
+      outreachWriteKey = buildApiKey('admin');
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'admin',
+        name: 'cp-fine-outreach-write',
+        keyHash: hashSecret(outreachWriteKey),
+        keyPrefix: keyPrefix(outreachWriteKey),
+        scopes: ['outreach:write'],
+      });
+    });
+
+    it('an "outreach:write"-only key cannot list templates (class default is outreach:read)', async () => {
+      const res = await fetch(`${baseUrl}/v1/outreach/email-templates`, {
+        headers: authHeaders(outreachWriteKey),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('an "outreach:read" key can list templates but cannot create one', async () => {
+      const list = await fetch(`${baseUrl}/v1/outreach/email-templates`, {
+        headers: authHeaders(outreachReadKey),
+      });
+      expect(list.status).toBe(200);
+
+      const create = await fetch(`${baseUrl}/v1/outreach/email-templates`, {
+        method: 'POST',
+        headers: authHeaders(outreachReadKey),
+        body: JSON.stringify({ name: 'cp-fine-outreach-read-attempt', mjml: TEMPLATE }),
+      });
+      expect(create.status).toBe(403);
+    });
+
+    it('an "outreach:write" key can create, update, and delete a template', async () => {
+      const create = await fetch(`${baseUrl}/v1/outreach/email-templates`, {
+        method: 'POST',
+        headers: authHeaders(outreachWriteKey),
+        body: JSON.stringify({ name: 'cp-fine-outreach-write-template', mjml: TEMPLATE }),
+      });
+      expect(create.status).toBe(201);
+      const created = (await create.json()) as { id: string };
+
+      const update = await fetch(`${baseUrl}/v1/outreach/email-templates/${created.id}`, {
+        method: 'PATCH',
+        headers: authHeaders(outreachWriteKey),
+        body: JSON.stringify({ description: 'updated by a write-scoped key' }),
+      });
+      expect(update.status).toBe(200);
+
+      const remove = await fetch(`${baseUrl}/v1/outreach/email-templates/${created.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(outreachWriteKey),
+      });
+      expect(remove.status).toBe(200);
     });
   });
 

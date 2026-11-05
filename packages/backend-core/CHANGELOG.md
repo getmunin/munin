@@ -1,5 +1,29 @@
 # @getmunin/backend-core
 
+## 5.52.0
+
+### Minor Changes
+
+- bfedd0b: Admin API keys can now be scoped to just the modules they need, instead of only ever being minted with full (`*`) access. The dashboard's "Mint API key" dialog gained a "Full access" toggle (on by default) and, when off, a per-module read/write picker reusing the same module list and descriptions as the OAuth consent screen; the key list now shows a scope summary per key.
+
+  The scope check already existed for MCP tool calls (`dispatch.ts`'s `hasScope`); this extends it to direct `/v1` REST calls by annotating each module's controller with `@AdmitAdminKeyScope`, so a scoped key behaves the same whether called over MCP or REST. Org/account-administration routes (API keys themselves, members, invitations, billing, and anything else gated by `@RequireRole`) stay `*`-only regardless of which module scopes a key holds — a scoped key can never mint a more-privileged key or manage the team.
+
+- 51a0423: Journey messages can say what is on the contact. Email subject, preheader and body, and SMS and chat bodies, take `{{contact.custom_fields.<field>|fallback}}`, read when the message is sent, HTML-escaped in email, never merged into a link URL, and replaced by the fallback when the field is missing or blank. Email subjects and preheaders are now personalised too. `journeys_validate` warns about a custom field without a fallback (`merge_field_no_fallback`) and refuses one inside a link (`merge_field_in_link`) or a placeholder an email cannot fill (`unknown_merge_field`). `journeys_simulate` returns merged subjects, preheaders and SMS and chat bodies for each sample contact, and the new `journeys_send_test` sends one email step to a member of the organization, merged for a sample contact.
+
+  Product event properties can be copied onto contact custom fields: `analytics_configure_product_event_fields` maps a property (optionally only from named events) to a field, and every recorded event that resolves to a contact writes the value, without an older event overwriting a newer one. `analytics_get_product_event_fields` reads the mappings, and the new skill `skill://analytics/copy-event-properties-to-contacts` describes the setup.
+
+### Patch Changes
+
+- f049b3c: Fix widget conversation list showing a blank title instead of "Conversation" for a Threll voice call where the caller said nothing. The silent-turn placeholder message is now excluded from the title/preview fallback, matching how it's already hidden from the visitor-facing message list.
+- Updated dependencies [bfedd0b]
+  - @getmunin/core@5.52.0
+  - @getmunin/inspector-app@5.52.0
+  - @getmunin/agent-runtime@5.52.0
+  - @getmunin/mcp-toolkit@5.52.0
+  - @getmunin/db@5.52.0
+  - @getmunin/emails@5.52.0
+  - @getmunin/types@5.52.0
+
 ## 5.51.0
 
 ### Minor Changes

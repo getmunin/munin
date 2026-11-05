@@ -2176,6 +2176,47 @@ const skipReason = TEST_URL
     expect((res.json as { conversations: unknown[] }).conversations).toEqual([]);
   });
 
+  it('falls back to the generic title when the only end-user turn is a silent voice call', async () => {
+    const externalId = `user_no_speech_${Date.now()}`;
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    const [endUser] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId })
+      .returning();
+    const conv = app.get(ConvService);
+    const actor = new ActorIdentity('system', 'threll', orgId, ['*'], ['admin']);
+    const started = await db.transaction((tx) =>
+      withContext({ db: tx, actor, correlationId: randomUUID() }, () =>
+        conv.startWidgetConversation({
+          channelId,
+          endUserId: endUser!.id,
+          body: 'Hi, how can I help?',
+          authorType: 'agent',
+          authorId: 'threll',
+        }),
+      ),
+    );
+    await db.insert(schema.convMessages).values({
+      orgId,
+      conversationId: started.id,
+      authorType: 'end_user',
+      authorId: 'voice-user',
+      body: '',
+      internal: false,
+      metadata: { threllCallId: 'call_no_speech_title', voiceTurnIndex: 1, voiceNoSpeech: true },
+    });
+
+    const res = await call(
+      'GET',
+      `/v1/widget/conversations?${qs({ channelId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const body = res.json as { conversations: Array<{ id: string; title: string }> };
+    const server = body.conversations.find((c) => c.id === started.id)!;
+    expect(server.title).toBe('Conversation');
+  });
+
   it('patches the visitor email on the contact bound to the session', async () => {
     const sid = `vis_setemail_${Date.now()}`;
     await call('POST', '/v1/widget/messages', widgetKey, {

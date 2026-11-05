@@ -15,7 +15,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -73,6 +73,7 @@ interface SegmentContactsResponse {
 @Controller('v1/crm/segments')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('crm:read')
 export class CrmSegmentsController {
   constructor(private readonly crm: CrmService) {}
 
@@ -89,12 +90,14 @@ export class CrmSegmentsController {
 
   @Post()
   @HttpCode(201)
+  @AdmitAdminKeyScope('crm:write')
   async create(@Body() input: CreateSegmentBody): Promise<SegmentDto> {
     return translate(() => this.crm.createSegment(input));
   }
 
   @Patch(':id')
   @HttpCode(200)
+  @AdmitAdminKeyScope('crm:write')
   async update(@Param('id') id: string, @Body() input: UpdateSegmentBody): Promise<SegmentDto> {
     return translate(() =>
       this.crm.updateSegment({
@@ -110,6 +113,7 @@ export class CrmSegmentsController {
 
   @Delete(':id')
   @HttpCode(200)
+  @AdmitAdminKeyScope('crm:write')
   async remove(@Param('id') id: string): Promise<{ deleted: true }> {
     return translate(() => this.crm.deleteSegment(id));
   }

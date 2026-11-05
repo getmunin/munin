@@ -10,7 +10,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { KbService, type KbExportData } from '../modules/kb/kb.service.ts';
@@ -51,12 +51,14 @@ export class KbTransferController {
   constructor(private readonly kb: KbService) {}
 
   @Get('export')
+  @AdmitAdminKeyScope('kb:read')
   export(): Promise<KbExportData> {
     return this.kb.exportKb();
   }
 
   @Post('import')
   @HttpCode(200)
+  @AdmitAdminKeyScope('kb:write')
   async import(@Body() input: ImportKbBody): Promise<ImportResult> {
     const records = {
       spaces: input.records.spaces.map((s) => ({ ...s, description: s.description ?? null })),

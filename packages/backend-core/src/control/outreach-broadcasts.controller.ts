@@ -14,7 +14,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { OutreachInvalidError } from '../modules/outreach/outreach.service.ts';
@@ -60,6 +60,7 @@ const RecipientStatusSchema = z.enum(BROADCAST_RECIPIENT_STATUSES);
 @Controller('v1/outreach/broadcasts')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('outreach:read')
 export class OutreachBroadcastsController {
   constructor(private readonly broadcasts: OutreachBroadcastsService) {}
 
@@ -102,18 +103,21 @@ export class OutreachBroadcastsController {
   }
 
   @Post()
+  @AdmitAdminKeyScope('outreach:write')
   async create(@Body() input: CreateBroadcastBody): Promise<BroadcastDto> {
     return translate(() => this.broadcasts.createBroadcast(input));
   }
 
   @Patch(':id')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async update(@Param('id') id: string, @Body() input: UpdateBroadcastBody): Promise<BroadcastDto> {
     return translate(() => this.broadcasts.updateBroadcast({ id, ...input }));
   }
 
   @Post(':id/test')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async test(
     @Param('id') id: string,
     @Body() input: TestBroadcastBody,
@@ -123,6 +127,7 @@ export class OutreachBroadcastsController {
 
   @Post(':id/approve')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async approve(@Param('id') id: string, @Body() input: ApproveBroadcastBody): Promise<BroadcastDto> {
     return translate(() =>
       this.broadcasts.approveBroadcast({ id, fingerprint: input.fingerprint, sendAt: input.sendAt }),
@@ -131,12 +136,14 @@ export class OutreachBroadcastsController {
 
   @Post(':id/dismiss')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async dismiss(@Param('id') id: string, @Body() input: DismissBroadcastBody): Promise<BroadcastDto> {
     return translate(() => this.broadcasts.dismissBroadcast({ id, reason: input.reason }));
   }
 
   @Post(':id/cancel')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async cancel(@Param('id') id: string, @Body() input: CancelBroadcastBody): Promise<BroadcastDto> {
     return translate(() => this.broadcasts.cancelBroadcast({ id, reason: input.reason }));
   }

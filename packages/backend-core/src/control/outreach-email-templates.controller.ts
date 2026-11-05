@@ -14,7 +14,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { OutreachInvalidError } from '../modules/outreach/outreach.service.ts';
@@ -67,6 +67,7 @@ interface TemplateListResponse {
 @Controller('v1/outreach/email-templates')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('outreach:read')
 export class OutreachEmailTemplatesController {
   constructor(private readonly templates: OutreachEmailTemplatesService) {}
 
@@ -87,18 +88,21 @@ export class OutreachEmailTemplatesController {
   }
 
   @Post()
+  @AdmitAdminKeyScope('outreach:write')
   async create(@Body() input: CreateTemplateBody): Promise<EmailTemplateDto> {
     return translate(() => this.templates.createTemplate(input));
   }
 
   @Patch(':id')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async update(@Param('id') id: string, @Body() input: UpdateTemplateBody): Promise<EmailTemplateDto> {
     return translate(() => this.templates.updateTemplate({ id, ...input }));
   }
 
   @Delete(':id')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async remove(@Param('id') id: string): Promise<{ deleted: true; id: string }> {
     return translate(() => this.templates.deleteTemplate(id));
   }

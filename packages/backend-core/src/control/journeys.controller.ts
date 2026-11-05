@@ -16,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -106,6 +106,7 @@ const StatusSchema = z.enum(JOURNEY_STATUSES);
 @Controller('v1/journeys')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('journeys:write')
 export class JourneysController {
   constructor(
     private readonly journeys: JourneysService,
@@ -116,17 +117,20 @@ export class JourneysController {
   ) {}
 
   @Get(':id/agent-stats')
+  @AdmitAdminKeyScope('journeys:read')
   async agentStats(@Param('id') id: string, @Query('days') days?: string): Promise<{ items: AgentNodeStatsDto[] }> {
     const window = days ? Math.min(90, Math.max(1, Number.parseInt(days, 10) || 30)) : 30;
     return { items: await this.publishing.agentStats(id, window) };
   }
 
   @Get(':id/review-stats')
+  @AdmitAdminKeyScope('journeys:read')
   async reviewStats(@Param('id') id: string): Promise<{ items: NodeReviewStatsDto[] }> {
     return { items: await this.publishing.nodeReviewStats(id) };
   }
 
   @Get(':id/report')
+  @AdmitAdminKeyScope('journeys:read')
   report(@Param('id') id: string, @Query('version') version?: string): Promise<JourneyReportDto> {
     return this.publishing.report(id, version ? Number.parseInt(version, 10) : undefined);
   }
@@ -198,6 +202,7 @@ export class JourneysController {
   }
 
   @Get('enrollments/:enrollmentId/trace')
+  @AdmitAdminKeyScope('journeys:read')
   trace(@Param('enrollmentId') enrollmentId: string): Promise<TraceDto> {
     return this.runtime.getTrace(enrollmentId);
   }
@@ -209,6 +214,7 @@ export class JourneysController {
   }
 
   @Get(':id/enrollments')
+  @AdmitAdminKeyScope('journeys:read')
   async listEnrollments(
     @Param('id') id: string,
     @Query('state') state?: string,
@@ -228,6 +234,7 @@ export class JourneysController {
   }
 
   @Get()
+  @AdmitAdminKeyScope('journeys:read')
   async list(
     @Query('status') status?: string,
     @Query('limit') limit?: string,
@@ -245,16 +252,19 @@ export class JourneysController {
   }
 
   @Get(':id')
+  @AdmitAdminKeyScope('journeys:read')
   get(@Param('id') id: string): Promise<JourneyDetailDto> {
     return this.journeys.get(id);
   }
 
   @Get(':id/versions')
+  @AdmitAdminKeyScope('journeys:read')
   async listVersions(@Param('id') id: string): Promise<{ items: JourneyVersionSummaryDto[] }> {
     return { items: await this.journeys.listVersions(id) };
   }
 
   @Get(':id/versions/:number')
+  @AdmitAdminKeyScope('journeys:read')
   getVersion(
     @Param('id') id: string,
     @Param('number', ParseIntPipe) number: number,
@@ -284,16 +294,19 @@ export class JourneysController {
   }
 
   @Get(':id/split-results')
+  @AdmitAdminKeyScope('journeys:read')
   async splitResults(@Param('id') id: string): Promise<{ items: SplitResultDto[] }> {
     return { items: await this.publishing.splitResults(id) };
   }
 
   @Get(':id/guardrails')
+  @AdmitAdminKeyScope('journeys:read')
   guardrails(@Param('id') id: string): Promise<GuardrailReportDto> {
     return this.monitor.report(id);
   }
 
   @Get(':id/template-changes')
+  @AdmitAdminKeyScope('journeys:read')
   listTemplateChanges(@Param('id') id: string): Promise<TemplateChangesDto> {
     return this.templateChanges.list(id);
   }

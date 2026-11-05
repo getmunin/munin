@@ -10,7 +10,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -91,12 +91,14 @@ export class OutreachTransferController {
   constructor(private readonly outreach: OutreachService) {}
 
   @Get('export')
+  @AdmitAdminKeyScope('outreach:read')
   export(): Promise<OutreachExportData> {
     return this.outreach.exportOutreach();
   }
 
   @Post('import')
   @HttpCode(200)
+  @AdmitAdminKeyScope('outreach:write')
   async import(@Body() input: ImportOutreachBody): Promise<ImportResult> {
     const records = {
       campaigns: input.records.campaigns.map((c) => ({ ...c, ctaUrl: c.ctaUrl ?? null })),

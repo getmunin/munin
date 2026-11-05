@@ -12,7 +12,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { SOCIAL_LINK_PLACEMENTS } from '../modules/social/social-platform.ts';
@@ -42,6 +42,7 @@ class DismissBody extends createZodDto(
 @Controller('v1/social/drafts')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('social:read')
 export class SocialDraftsController {
   constructor(private readonly social: SocialService) {}
 
@@ -57,12 +58,14 @@ export class SocialDraftsController {
 
   @Patch(':id')
   @HttpCode(200)
+  @AdmitAdminKeyScope('social:write')
   revise(@Param('id') id: string, @Body() body: ReviseBody): Promise<SocialDraftDto> {
     return this.social.reviseDraft(id, body.body);
   }
 
   @Patch(':id/link-placement')
   @HttpCode(200)
+  @AdmitAdminKeyScope('social:write')
   setLinkPlacement(
     @Param('id') id: string,
     @Body() body: LinkPlacementBody,
@@ -75,18 +78,21 @@ export class SocialDraftsController {
 
   @Post(':id/publish')
   @HttpCode(200)
+  @AdmitAdminKeyScope('social:write')
   publish(@Param('id') id: string): Promise<SocialDraftDto> {
     return this.social.publishDraft(id);
   }
 
   @Post(':id/approve')
   @HttpCode(200)
+  @AdmitAdminKeyScope('social:write')
   approve(@Param('id') id: string, @Body() body: MarkPostedBody): Promise<SocialDraftDto> {
     return this.social.markPosted(id, body.permalink ?? null);
   }
 
   @Post(':id/dismiss')
   @HttpCode(200)
+  @AdmitAdminKeyScope('social:write')
   dismiss(
     @Param('id') id: string,
     @Body() body: DismissBody,

@@ -18,6 +18,7 @@ export {
   OrgAccessDeniedError,
   type ResolvedCredential,
   readMembershipsForUser,
+  gateOauthGrantsByRole,
 } from './request/credentials.ts';
 export {
   canonicalMcpResource,

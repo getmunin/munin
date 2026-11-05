@@ -10,7 +10,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -143,12 +143,14 @@ export class CrmTransferController {
   constructor(private readonly crm: CrmService) {}
 
   @Get('export')
+  @AdmitAdminKeyScope('crm:read')
   export(): Promise<CrmExportData> {
     return this.crm.exportCrm();
   }
 
   @Post('import')
   @HttpCode(200)
+  @AdmitAdminKeyScope('crm:write')
   async import(@Body() input: ImportCrmBody): Promise<ImportResult> {
     const r = input.records;
     const records: CrmExportData = {

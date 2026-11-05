@@ -15,7 +15,15 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, eq, isNull } from 'drizzle-orm';
-import { buildApiKey, getCurrentContext, hashSecret, keyPrefix, WebhookDispatcher } from '@getmunin/core';
+import {
+  buildApiKey,
+  gateOauthGrantsByRole,
+  getCurrentContext,
+  hashSecret,
+  keyPrefix,
+  WebhookDispatcher,
+} from '@getmunin/core';
+import { SUPPORTED_SCOPES } from '@getmunin/types';
 import { Inject } from '@nestjs/common';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -27,7 +35,7 @@ import { RequireRole } from './role.decorator.ts';
 class CreateApiKeyBody extends createZodDto(
   z.object({
     name: z.string().min(1).max(128),
-    scopes: z.array(z.string()).default([]),
+    scopes: z.array(z.union([z.enum(SUPPORTED_SCOPES), z.literal('*')])).default([]),
   }),
 ) {}
 
@@ -63,6 +71,8 @@ export class ApiKeysController {
     const actor = ctx.actor!;
     if (!actor.orgId) throw new BadRequestException('No org bound to caller');
 
+    const { scopes } = gateOauthGrantsByRole(input.scopes, actor.orgRole);
+
     const rawKey = buildApiKey('admin');
     const [row] = await ctx.db
       .insert(schema.apiKeys)
@@ -72,7 +82,7 @@ export class ApiKeysController {
         name: input.name,
         keyHash: hashSecret(rawKey),
         keyPrefix: keyPrefix(rawKey),
-        scopes: input.scopes,
+        scopes,
         createdByUserId: actor.userId ?? null,
       })
       .returning({

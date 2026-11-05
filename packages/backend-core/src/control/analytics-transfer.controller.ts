@@ -12,7 +12,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -103,6 +103,7 @@ const ExportEventsQuery = z.object({
 @Controller('v1/analytics')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('analytics:read')
 export class AnalyticsTransferController {
   constructor(private readonly analytics: AnalyticsService) {}
 
@@ -122,6 +123,7 @@ export class AnalyticsTransferController {
 
   @Post('import')
   @HttpCode(200)
+  @AdmitAdminKeyScope('analytics:write')
   async import(@Body() input: ImportAnalyticsBody): Promise<ImportResult> {
     return this.analytics.importAnalytics(
       { config: input.config, events: input.events },

@@ -10764,14 +10764,60 @@
           "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 128
+            "maxLength": 128,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
           },
           "scopes": {
             "default": [],
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "mcp:tools",
+                    "mcp:admin",
+                    "identity:read",
+                    "kb:read",
+                    "kb:write",
+                    "conv:read",
+                    "conv:write",
+                    "crm:read",
+                    "crm:write",
+                    "cms:read",
+                    "cms:write",
+                    "outreach:read",
+                    "outreach:write",
+                    "connectors:read",
+                    "connectors:write",
+                    "commerce:read",
+                    "bookings:read",
+                    "bookings:write",
+                    "seo:read",
+                    "seo:write",
+                    "analytics:read",
+                    "analytics:write",
+                    "webhooks:read",
+                    "webhooks:write",
+                    "feedback:read",
+                    "feedback:write",
+                    "system_alerts:read",
+                    "system_alerts:write",
+                    "slack:read",
+                    "slack:write",
+                    "social:read",
+                    "social:write",
+                    "journeys:read",
+                    "journeys:write"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "const": "*"
+                }
+              ]
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
           }
         },
         "required": [

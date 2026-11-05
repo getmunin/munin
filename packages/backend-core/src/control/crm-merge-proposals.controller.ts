@@ -13,7 +13,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -44,6 +44,7 @@ interface MergeProposalListResponse {
 @Controller('v1/crm/merge-proposals')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('crm:read')
 export class CrmMergeProposalsController {
   constructor(private readonly crm: CrmService) {}
 
@@ -72,6 +73,7 @@ export class CrmMergeProposalsController {
 
   @Post(':id/apply')
   @HttpCode(200)
+  @AdmitAdminKeyScope('crm:write')
   async apply(
     @Param('id') id: string,
     @Body() input: ApplyMergeProposalBody,
@@ -81,6 +83,7 @@ export class CrmMergeProposalsController {
 
   @Post(':id/dismiss')
   @HttpCode(200)
+  @AdmitAdminKeyScope('crm:write')
   async dismiss(
     @Param('id') id: string,
     @Body() input: DismissMergeProposalBody,

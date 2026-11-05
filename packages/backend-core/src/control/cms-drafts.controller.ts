@@ -14,7 +14,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AdmitAdminKeyScope, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -100,6 +100,7 @@ class RequestAssetUploadBody extends createZodDto(
 @Controller('v1/cms/drafts')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@AdmitAdminKeyScope('cms:read')
 export class CmsDraftsController {
   constructor(private readonly cms: CmsService) {}
 
@@ -111,6 +112,7 @@ export class CmsDraftsController {
 
   @Patch(':id')
   @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
   async patch(@Param('id') id: string, @Body() input: PatchDraftBody): Promise<CmsDraftDetailDto> {
     const entry = await translate(async () => {
       const existing = await this.cms.getEntry(id);
@@ -130,6 +132,7 @@ export class CmsDraftsController {
 
   @Post(':id/approve')
   @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
   async approve(@Param('id') id: string): Promise<EntryDto> {
     return translate(async () => {
       const existing = await this.cms.getEntry(id);
@@ -139,6 +142,7 @@ export class CmsDraftsController {
 
   @Post(':id/schedule')
   @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
   async schedule(@Param('id') id: string, @Body() input: ScheduleDraftBody): Promise<EntryDto> {
     return translate(async () => {
       const existing = await this.cms.getEntry(id);
@@ -152,6 +156,7 @@ export class CmsDraftsController {
 
   @Post(':id/unschedule')
   @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
   async unschedule(@Param('id') id: string): Promise<EntryDto> {
     return translate(async () => {
       const existing = await this.cms.getEntry(id);
@@ -161,6 +166,7 @@ export class CmsDraftsController {
 
   @Post(':id/assets')
   @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
   async uploadAsset(@Param('id') id: string, @Body() input: UploadAssetBody): Promise<AssetDto> {
     return translate(async () => {
       await this.cms.getEntry(id);
@@ -170,6 +176,7 @@ export class CmsDraftsController {
 
   @Post(':id/assets/upload-request')
   @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
   async requestAssetUpload(
     @Param('id') id: string,
     @Body() input: RequestAssetUploadBody,
@@ -182,6 +189,7 @@ export class CmsDraftsController {
 
   @Post(':id/assets/:assetId/complete')
   @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
   async completeAssetUpload(
     @Param('id') id: string,
     @Param('assetId') assetId: string,
@@ -201,6 +209,7 @@ export class CmsDraftsController {
 
   @Post(':id/dismiss')
   @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
   async dismiss(
     @Param('id') id: string,
     @Body() input: DismissDraftBody,

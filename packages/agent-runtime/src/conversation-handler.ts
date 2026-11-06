@@ -499,6 +499,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         });
 
         if (signal.aborted) return;
+        if (rawReply.recoveredTextToolCalls) {
+          log.warn(
+            `${conversationId} recovered ${rawReply.recoveredTextToolCalls} tool call(s) ${rawReply.model} wrote as text`,
+          );
+        }
 
         const agentReply = { ...rawReply, body: htmlToMarkdown(rawReply.body) };
         const reply =

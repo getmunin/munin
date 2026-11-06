@@ -10,6 +10,7 @@ import {
 import { ProviderError } from './providers/transport.ts';
 import { neutralizeFraming, sanitizeToolName } from './untrusted.ts';
 import { createStubProvider } from './providers/stub.ts';
+import { deriveMessageComponents, withProductCards } from './message-components.ts';
 import {
   VISION_IMAGE_HISTORY_CHAR_COST,
   VISION_MAX_IMAGES_PER_TURN,
@@ -801,5 +802,137 @@ describe('runAgent tool-result budget', () => {
     ).rejects.toBe(overflow);
     expect(provider).toHaveBeenCalledTimes(1);
     expect(visionKnownUnsupported('overflow-model')).toBe(false);
+  });
+});
+
+describe('runAgent tool calls written as text', () => {
+  const connection = { id: 'conn_1', name: 'Nettbutikk', vendor: 'magento2' };
+  const pole = {
+    productRef: 'SL-POLE-G3',
+    title: 'Stangfeste for Starlink Gen 3',
+    url: 'https://shop.example.com/sl-pole-g3',
+    imageUrl: 'https://shop.example.com/sl-pole-g3.jpg',
+    currency: 'NOK',
+    priceMin: '499',
+    priceMax: '499',
+  };
+
+  function catalogMcp(): McpToolHandle {
+    return {
+      listTools: vi.fn(() =>
+        Promise.resolve([
+          {
+            name: 'commerce_search_products',
+            inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+          },
+        ]),
+      ),
+      callTool: vi.fn(() =>
+        Promise.resolve({
+          content: [{ type: 'text' as const, text: JSON.stringify({ connection, products: [pole] }) }],
+        }),
+      ),
+    };
+  }
+
+  it('runs a show_products call Gemma appended to its reply and keeps the reply as the body', async () => {
+    const { provider, calls } = createStubProvider({
+      responses: [
+        toolCallResponse('call_1', 'commerce_search_products', { query: 'starlink' }),
+        plainTextResponse(
+          'Vi har et stangfeste til Starlink Gen 3 tilgjengelig. Er det det du leter etter? show_products(productRefs=["SL-POLE-G3"])',
+        ),
+        plainTextResponse(''),
+      ],
+    });
+
+    const reply = await runAgent({
+      config: baseConfig,
+      history: [{ authorType: 'end_user', body: 'Starlink' }],
+      mcp: withProductCards(catalogMcp()),
+      provider,
+    });
+
+    expect(reply.body).toBe(
+      'Vi har et stangfeste til Starlink Gen 3 tilgjengelig. Er det det du leter etter?',
+    );
+    expect(reply.recoveredTextToolCalls).toBe(1);
+    expect(reply.toolCalls.map((call) => call.name)).toEqual([
+      'commerce_search_products',
+      'show_products',
+    ]);
+    expect(deriveMessageComponents(reply.toolCalls)?.[0]?.items.map((item) => item.productRef)).toEqual([
+      'SL-POLE-G3',
+    ]);
+
+    const replayed = calls[2]?.messages ?? [];
+    const assistantTurn = replayed.findLast((m) => m.role === 'assistant');
+    expect(assistantTurn?.content).toBe(
+      'Vi har et stangfeste til Starlink Gen 3 tilgjengelig. Er det det du leter etter?',
+    );
+    expect(assistantTurn?.tool_calls?.[0]?.function).toEqual({
+      name: 'show_products',
+      arguments: JSON.stringify({ productRefs: ['SL-POLE-G3'] }),
+    });
+    expect(replayed.at(-1)).toMatchObject({ role: 'tool', tool_call_id: assistantTurn?.tool_calls?.[0]?.id });
+  });
+
+  it('prefers the reply the model writes after the recovered call ran', async () => {
+    const { provider } = createStubProvider({
+      responses: [
+        plainTextResponse('Et øyeblikk. kb_search(query="åpningstider")'),
+        plainTextResponse('Vi har åpent 9–17.'),
+      ],
+    });
+    const mcp = makeMcp();
+
+    const reply = await runAgent({
+      config: baseConfig,
+      history: [{ authorType: 'end_user', body: 'når har dere åpent?' }],
+      mcp,
+      provider,
+    });
+
+    expect(mcp.callTool).toHaveBeenCalledWith('kb_search', { query: 'åpningstider' });
+    expect(reply.body).toBe('Vi har åpent 9–17.');
+    expect(reply.finishReason).toBe('stop');
+  });
+
+  it('leaves the text alone when it names a tool the turn did not offer', async () => {
+    const { provider, calls } = createStubProvider({
+      responses: [plainTextResponse('Ferdig. show_products(productRefs=["SL-POLE-G3"])')],
+    });
+    const mcp = makeMcp();
+
+    const reply = await runAgent({
+      config: baseConfig,
+      history: [{ authorType: 'end_user', body: 'Starlink' }],
+      mcp,
+      provider,
+    });
+
+    expect(reply.body).toBe('Ferdig. show_products(productRefs=["SL-POLE-G3"])');
+    expect(reply.recoveredTextToolCalls).toBeUndefined();
+    expect(mcp.callTool).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('does not recover from a reply cut off at the token limit', async () => {
+    const { provider } = createStubProvider({
+      responses: [
+        { ...plainTextResponse('Et øyeblikk. kb_search(query="frakt")'), finishReason: 'length' },
+      ],
+    });
+    const mcp = makeMcp();
+
+    const reply = await runAgent({
+      config: baseConfig,
+      history: [{ authorType: 'end_user', body: 'frakt?' }],
+      mcp,
+      provider,
+    });
+
+    expect(reply.finishReason).toBe('length');
+    expect(mcp.callTool).not.toHaveBeenCalled();
   });
 });

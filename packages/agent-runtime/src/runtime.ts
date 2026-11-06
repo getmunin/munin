@@ -4,6 +4,7 @@ import { ProviderError } from './providers/transport.ts';
 import { renderQuotedHistory } from './quoted-history.ts';
 import { fenceUntrusted, sanitizeToolName } from './untrusted.ts';
 import { redactNationalIdsForPrompt } from './redact-ids.ts';
+import { recoverTextToolCalls } from './text-tool-calls.ts';
 import {
   imageBudgetChars,
   loadHistoryImages,
@@ -14,6 +15,7 @@ import type {
   AgentConfig,
   AgentReply,
   ChatMessage,
+  ChatToolCall,
   ConversationMessage,
   McpToolHandle,
   Provider,
@@ -92,6 +94,7 @@ export async function runAgent({
   fetchImage,
 }: RunAgentArgs): Promise<AgentReply> {
   const tools = mcpToolsToChatTools(await mcp.listTools());
+  const toolNames = new Set(tools.map((tool) => tool.function.name));
   const compacted = compactHistory(history, config.maxHistoryChars ?? DEFAULT_MAX_HISTORY_CHARS);
   const messages: ChatMessage[] = [
     { role: 'system', content: config.systemPrompt },
@@ -143,6 +146,8 @@ export async function runAgent({
   const toolNamesByCallId = new Map<string, string>();
   const usageTotal = { prompt: 0, completion: 0, total: 0 };
   const maxIterations = config.maxToolIterations ?? DEFAULT_MAX_TOOL_ITERATIONS;
+  let recoveredProse = '';
+  let recoveredTextToolCalls = 0;
 
   for (let iteration = 0; iteration < maxIterations; iteration += 1) {
     if (abortSignal?.aborted) {
@@ -160,9 +165,23 @@ export async function runAgent({
     }
     accumulateUsage(usageTotal, response.usage);
 
-    if (response.finishReason === 'tool_calls' && response.message.tool_calls?.length) {
-      messages.push(response.message);
-      for (const call of response.message.tool_calls) {
+    const recovered =
+      response.finishReason === 'stop'
+        ? recoverTextToolCalls(response.message.content, toolNames)
+        : null;
+    if (recovered) {
+      recoveredProse = recovered.prose;
+      recoveredTextToolCalls += recovered.calls.length;
+    }
+    const toolTurn = recovered
+      ? recoveredToolTurn(recovered.prose, recovered.calls, iteration)
+      : response.finishReason === 'tool_calls'
+        ? response.message
+        : null;
+
+    if (toolTurn?.tool_calls?.length) {
+      messages.push(toolTurn);
+      for (const call of toolTurn.tool_calls) {
         if (abortSignal?.aborted) {
           throw new DOMException('aborted', 'AbortError');
         }
@@ -181,7 +200,7 @@ export async function runAgent({
     }
 
     return {
-      body: normalizeReplyBody(response.message.content),
+      body: normalizeReplyBody(response.message.content) || normalizeReplyBody(recoveredProse),
       usage: {
         promptTokens: usageTotal.prompt,
         completionTokens: usageTotal.completion,
@@ -190,6 +209,7 @@ export async function runAgent({
       model: config.model,
       finishReason: response.finishReason === 'stop' ? 'stop' : response.finishReason === 'length' ? 'length' : 'error',
       toolCalls,
+      ...(recoveredTextToolCalls > 0 ? { recoveredTextToolCalls } : {}),
     };
   }
 
@@ -203,7 +223,21 @@ export async function runAgent({
     model: config.model,
     finishReason: 'tool_iteration_limit',
     toolCalls,
+    ...(recoveredTextToolCalls > 0 ? { recoveredTextToolCalls } : {}),
   };
+}
+
+function recoveredToolTurn(
+  prose: string,
+  calls: ReadonlyArray<{ name: string; args: Record<string, unknown> }>,
+  iteration: number,
+): ChatMessage {
+  const toolCalls: ChatToolCall[] = calls.map((call, index) => ({
+    id: `text_call_${iteration}_${index}`,
+    type: 'function',
+    function: { name: call.name, arguments: JSON.stringify(call.args) },
+  }));
+  return { role: 'assistant', content: prose.length > 0 ? prose : null, tool_calls: toolCalls };
 }
 
 export function normalizeReplyBody(content: string | null | undefined): string {

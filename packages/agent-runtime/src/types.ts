@@ -67,6 +67,7 @@ export interface AgentReply {
   model: string;
   finishReason: 'stop' | 'length' | 'tool_iteration_limit' | 'error';
   toolCalls: ToolCallTrace[];
+  recoveredTextToolCalls?: number;
 }
 
 export interface ChatImage {

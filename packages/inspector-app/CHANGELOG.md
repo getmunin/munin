@@ -1,5 +1,14 @@
 # @getmunin/inspector-app
 
+## 5.52.1
+
+### Patch Changes
+
+- b05fa82: Update the MCP TypeScript SDK to 2.4.0 (`@modelcontextprotocol/node` 2.1.2), which moves `@hono/node-server` to 2.x and clears GHSA-rmxm-3fg6-px4f. Also raise the `joi` and `systeminformation` overrides past their published advisories.
+- @getmunin/dashboard-pages@5.52.1
+  - @getmunin/types@5.52.1
+  - @getmunin/ui@5.52.1
+
 ## 5.52.0
 
 ### Patch Changes

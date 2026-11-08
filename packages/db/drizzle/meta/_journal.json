@@ -1009,6 +1009,13 @@
       "when": 1793134530267,
       "tag": "0143_journey_proposals_without_campaign",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1793134590267,
+      "tag": "0144_crm_company_registration",
+      "breakpoints": true
     }
   ]
 }

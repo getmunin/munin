@@ -14854,6 +14854,28 @@
                         }
                       ]
                     },
+                    "registrationCountry": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "registrationNumber": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "tags": {
                       "maxItems": 32,
                       "type": "array",

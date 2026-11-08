@@ -296,6 +296,8 @@ const CrmImportInput = z.object({
         id: z.string(),
         name: z.string().min(1).max(200),
         domain: z.string().max(200).nullable().optional(),
+        registrationCountry: z.string().max(2).nullable().optional(),
+        registrationNumber: z.string().max(64).nullable().optional(),
         tags: TagsSchema,
         customFields: CustomFieldsSchema,
       }),

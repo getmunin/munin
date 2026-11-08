@@ -146,6 +146,29 @@ export interface CompanyDto {
   updatedAt: string;
 }
 
+export interface CompanyDetailDto extends CompanyDto {
+  contactCount: number;
+  openDealCount: number;
+}
+
+export type CompanyLookupMatch =
+  | { matchedBy: 'registration'; input: CompanyRegistration; company: CompanyDto }
+  | { matchedBy: 'domain'; input: { domain: string }; company: CompanyDto };
+
+export interface CompanyLookupResult {
+  matches: CompanyLookupMatch[];
+  invalid: { input: CompanyRegistration | { domain: string }; error: string }[];
+}
+
+export interface CompanyPatch {
+  name?: string;
+  domain?: string | null;
+  registration?: CompanyRegistration | null;
+  ownerUserId?: string | null;
+  tags?: string[];
+  customFields?: Record<string, unknown>;
+}
+
 export interface PipelineDto {
   id: string;
   name: string;
@@ -1050,15 +1073,212 @@ export class CrmService {
     return this.hydrateContacts(rows);
   }
 
-  async listCompanies(input: { limit?: number }): Promise<CompanyDto[]> {
+  async listCompanies(input: {
+    tag?: string;
+    ownerUserId?: string;
+    unowned?: boolean;
+    limit?: number;
+  }): Promise<CompanyDto[]> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
+    if (input.ownerUserId && input.unowned) {
+      throw new CrmInvalidError('pass either ownerUserId or unowned, not both');
+    }
+    const filters: SQL[] = [];
+    if (input.tag) {
+      filters.push(sql`${schema.crmCompanies.tags} @> ${JSON.stringify([input.tag])}::jsonb`);
+    }
+    if (input.ownerUserId) {
+      filters.push(eq(schema.crmCompanies.ownerUserId, this.resolveOwnerAlias(input.ownerUserId)));
+    }
+    if (input.unowned) filters.push(sql`${schema.crmCompanies.ownerUserId} IS NULL`);
     const rows = await ctx.db
       .select()
       .from(schema.crmCompanies)
+      .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(desc(schema.crmCompanies.updatedAt))
       .limit(limit);
     return rows.map(toCompanyDto);
+  }
+
+  async getCompanyDetail(id: string): Promise<CompanyDetailDto> {
+    const ctx = getCurrentContext();
+    const company = await this.getCompany(id);
+    const [[contacts], [deals]] = await Promise.all([
+      ctx.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(schema.crmContacts)
+        .where(
+          and(
+            eq(schema.crmContacts.companyId, id),
+            sql`NOT (${schema.crmContacts.customFields} ? 'mergedInto')`,
+          ),
+        ),
+      ctx.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(schema.crmDeals)
+        .innerJoin(schema.crmStages, eq(schema.crmStages.id, schema.crmDeals.stageId))
+        .where(and(eq(schema.crmDeals.companyId, id), eq(schema.crmStages.winLoss, 'open'))),
+    ]);
+    return { ...company, contactCount: contacts?.n ?? 0, openDealCount: deals?.n ?? 0 };
+  }
+
+  async searchCompanies(input: { query: string; limit?: number }): Promise<CompanyDto[]> {
+    const ctx = getCurrentContext();
+    const limit = clampLimit(input.limit, 25, 100);
+    const trimmed = input.query.trim();
+    if (!trimmed) return [];
+    const compact = trimmed.toUpperCase().replace(/[\s.\-/]/g, '');
+    const rows = await ctx.db
+      .select()
+      .from(schema.crmCompanies)
+      .where(
+        or(
+          ilike(schema.crmCompanies.name, `%${trimmed}%`),
+          ilike(schema.crmCompanies.domain, `%${trimmed}%`),
+          compact ? eq(schema.crmCompanies.registrationNumber, compact) : undefined,
+        ),
+      )
+      .orderBy(desc(schema.crmCompanies.updatedAt))
+      .limit(limit);
+    return rows.map(toCompanyDto);
+  }
+
+  async lookupCompanies(input: {
+    registrations?: CompanyRegistration[];
+    domains?: string[];
+  }): Promise<CompanyLookupResult> {
+    const ctx = getCurrentContext();
+    const registrations = input.registrations ?? [];
+    const domains = input.domains ?? [];
+    if (registrations.length === 0 && domains.length === 0) {
+      throw new CrmInvalidError('pass at least one registration or domain to look up');
+    }
+    const invalid: CompanyLookupResult['invalid'] = [];
+    const wantedRegistrations: { input: CompanyRegistration; key: CompanyRegistration }[] = [];
+    for (const reg of registrations) {
+      try {
+        wantedRegistrations.push({ input: reg, key: normalizeRegistration(reg) });
+      } catch (err) {
+        if (!(err instanceof CrmInvalidError)) throw err;
+        invalid.push({ input: reg, error: err.message });
+      }
+    }
+    const wantedDomains: { input: string; key: string }[] = [];
+    for (const domain of domains) {
+      const key = normalizeDomainKey(domain);
+      if (key) wantedDomains.push({ input: domain, key });
+      else invalid.push({ input: { domain }, error: 'crm_invalid: domain is empty after normalizing' });
+    }
+
+    const [byRegistration, byDomain] = await Promise.all([
+      wantedRegistrations.length > 0
+        ? ctx.db
+            .select()
+            .from(schema.crmCompanies)
+            .where(
+              or(
+                ...wantedRegistrations.map((w) =>
+                  and(
+                    eq(schema.crmCompanies.registrationCountry, w.key.country),
+                    eq(schema.crmCompanies.registrationNumber, w.key.number),
+                  ),
+                ),
+              ),
+            )
+        : Promise.resolve([]),
+      wantedDomains.length > 0
+        ? ctx.db
+            .select({ company: schema.crmCompanies, key: COMPANY_DOMAIN_KEY })
+            .from(schema.crmCompanies)
+            .where(inArray(COMPANY_DOMAIN_KEY, [...new Set(wantedDomains.map((w) => w.key))]))
+            .orderBy(desc(schema.crmCompanies.updatedAt))
+        : Promise.resolve([]),
+    ]);
+
+    const matches: CompanyLookupMatch[] = [];
+    for (const w of wantedRegistrations) {
+      const row = byRegistration.find(
+        (r) => r.registrationCountry === w.key.country && r.registrationNumber === w.key.number,
+      );
+      if (row) matches.push({ matchedBy: 'registration', input: w.input, company: toCompanyDto(row) });
+    }
+    for (const w of wantedDomains) {
+      for (const row of byDomain.filter((r) => r.key === w.key)) {
+        matches.push({
+          matchedBy: 'domain',
+          input: { domain: w.input },
+          company: toCompanyDto(row.company),
+        });
+      }
+    }
+    return { matches, invalid };
+  }
+
+  async updateCompany(input: {
+    id: string;
+    patch: CompanyPatch;
+    mode?: 'fill-null' | 'overwrite';
+  }): Promise<CompanyDto> {
+    const ctx = getCurrentContext();
+    const [existing] = await ctx.db
+      .select()
+      .from(schema.crmCompanies)
+      .where(eq(schema.crmCompanies.id, input.id))
+      .limit(1);
+    if (!existing) throw new NotFoundException(`crm_not_found: company ${input.id}`);
+    const patch: CompanyPatch =
+      input.mode === 'fill-null'
+        ? computeBackfillPatch(
+            { ...existing, registration: existing.registrationNumber },
+            { ...input.patch },
+          ).apply
+        : input.patch;
+
+    const updates: Partial<typeof schema.crmCompanies.$inferInsert> = {};
+    if (patch.name !== undefined) updates.name = patch.name;
+    if (patch.domain !== undefined) updates.domain = patch.domain;
+    if (patch.registration !== undefined) {
+      const registration = patch.registration ? normalizeRegistration(patch.registration) : null;
+      if (registration) await this.assertRegistrationFree(registration, existing.id);
+      updates.registrationCountry = registration?.country ?? null;
+      updates.registrationNumber = registration?.number ?? null;
+    }
+    if (patch.ownerUserId !== undefined) {
+      const owner = patch.ownerUserId === null ? null : this.resolveOwnerAlias(patch.ownerUserId);
+      if (owner) await this.assertOrgMember(owner);
+      updates.ownerUserId = owner;
+    }
+    if (patch.tags !== undefined) updates.tags = patch.tags;
+    if (patch.customFields !== undefined) {
+      updates.customFields = { ...existing.customFields, ...patch.customFields };
+    }
+    const fields = Object.keys(patch).filter(
+      (k) => patch[k as keyof CompanyPatch] !== undefined,
+    );
+    if (fields.length === 0) return toCompanyDto(existing);
+
+    const [row] = await ctx.db
+      .update(schema.crmCompanies)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(schema.crmCompanies.id, existing.id))
+      .returning();
+    await this.webhooks.emit({
+      type: 'crm.company.updated',
+      payload: { companyId: existing.id, fields },
+    });
+    return toCompanyDto(row!);
+  }
+
+  private resolveOwnerAlias(ownerUserId: string): string {
+    if (ownerUserId !== 'me') return ownerUserId;
+    const userId = getCurrentContext().actor!.userId;
+    if (!userId) {
+      throw new CrmInvalidError(
+        '"me" needs a signed-in person; this caller has no user (an API key, for example), so pass a user id',
+      );
+    }
+    return userId;
   }
 
   async getCompany(id: string): Promise<CompanyDto> {
@@ -1134,7 +1354,8 @@ export class CrmService {
     const actor = ctx.actor!;
     const registration = input.registration ? normalizeRegistration(input.registration) : null;
     if (registration) await this.assertRegistrationFree(registration);
-    if (input.ownerUserId) await this.assertOrgMember(input.ownerUserId);
+    const ownerUserId = input.ownerUserId ? this.resolveOwnerAlias(input.ownerUserId) : null;
+    if (ownerUserId) await this.assertOrgMember(ownerUserId);
     const [row] = await ctx.db
       .insert(schema.crmCompanies)
       .values({
@@ -1143,7 +1364,7 @@ export class CrmService {
         domain: input.domain ?? null,
         registrationCountry: registration?.country ?? null,
         registrationNumber: registration?.number ?? null,
-        ownerUserId: input.ownerUserId ?? null,
+        ownerUserId,
         tags: input.tags ?? [],
         customFields: input.customFields ?? {},
       })
@@ -2716,6 +2937,18 @@ type MergeProposalEventType =
   | 'crm.merge_proposal.dismissed';
 
 const MERGED_AWAY_LAST = sql`(${schema.crmContacts.customFields} ? 'mergedInto') asc`;
+
+const COMPANY_DOMAIN_KEY = sql<string>`regexp_replace(regexp_replace(regexp_replace(lower(trim(${schema.crmCompanies.domain})), '^[a-z][a-z0-9+.-]*://', ''), '^www[.]', ''), '[/?#:].*$', '')`;
+
+export function normalizeDomainKey(value: string): string | null {
+  const host = value
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/[/?#:].*$/, '');
+  return host || null;
+}
 
 const CONTACT_EMAIL_KEY = sql`lower(trim(${schema.crmContacts.email}))`;
 

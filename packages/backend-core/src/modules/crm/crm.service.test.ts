@@ -344,6 +344,212 @@ const skipReason = TEST_URL
     });
   });
 
+  describe('company tools', () => {
+    function asMember(): ActorIdentity {
+      return new ActorIdentity(
+        'user',
+        memberUserId,
+        orgId,
+        ['*'],
+        ['admin'],
+        undefined,
+        undefined,
+        undefined,
+        memberUserId,
+      );
+    }
+
+    it('getCompanyDetail counts live contacts and deals in open stages', async () => {
+      const co = await run(() => svc.createCompany({ name: 'Acme' }));
+      await run(() => svc.createContact({ name: 'A', email: 'a@x', companyId: co.id }));
+      await run(() =>
+        svc.createContact({
+          name: 'B',
+          email: 'b@x',
+          companyId: co.id,
+          customFields: { mergedInto: 'someone-else' },
+        }),
+      );
+      const pipeline = await run(() =>
+        svc.createPipeline({
+          name: 'Sales',
+          slug: 'sales',
+          stages: [{ name: 'Open' }, { name: 'Won', winLoss: 'won' }],
+        }),
+      );
+      await run(() => svc.createDeal({ name: 'D1', pipelineId: pipeline.id, companyId: co.id }));
+      await run(() =>
+        svc.createDeal({
+          name: 'D2',
+          pipelineId: pipeline.id,
+          stageId: pipeline.stages[1]!.id,
+          companyId: co.id,
+        }),
+      );
+      const detail = await run(() => svc.getCompanyDetail(co.id));
+      expect(detail.contactCount).toBe(1);
+      expect(detail.openDealCount).toBe(1);
+      await expect(run(() => svc.getCompanyDetail(randomUUID()))).rejects.toThrow(NotFoundException);
+    });
+
+    it('lookupCompanies returns only matches, in input order, and reports invalid registrations', async () => {
+      const acme = await run(() =>
+        svc.createCompany({
+          name: 'Acme',
+          domain: 'https://www.Acme.example/',
+          registration: { country: 'NO', number: '123456785' },
+        }),
+      );
+      const result = await run(() =>
+        svc.lookupCompanies({
+          registrations: [
+            { country: 'SE', number: '000000-0018' },
+            { country: 'no', number: 'NO 123 456 785 MVA' },
+            { country: 'NO', number: '123456789' },
+          ],
+          domains: ['acme.example/about', 'globex.example', '   '],
+        }),
+      );
+      expect(result.matches.map((m) => [m.matchedBy, m.input, m.company.id])).toEqual([
+        ['registration', { country: 'no', number: 'NO 123 456 785 MVA' }, acme.id],
+        ['domain', { domain: 'acme.example/about' }, acme.id],
+      ]);
+      expect(result.invalid.map((i) => i.input)).toEqual([
+        { country: 'NO', number: '123456789' },
+        { domain: '   ' },
+      ]);
+    });
+
+    it('lookupCompanies rejects a call with nothing to look up', async () => {
+      await expect(run(() => svc.lookupCompanies({}))).rejects.toThrow(CrmInvalidError);
+    });
+
+    it('searchCompanies matches name and domain fragments and an exact registration number', async () => {
+      await run(() =>
+        svc.createCompany({
+          name: 'Acme Verksted',
+          domain: 'acme.example',
+          registration: { country: 'NO', number: '123456785' },
+        }),
+      );
+      await run(() => svc.createCompany({ name: 'Globex' }));
+      expect((await run(() => svc.searchCompanies({ query: 'verk' }))).map((c) => c.name)).toEqual([
+        'Acme Verksted',
+      ]);
+      expect((await run(() => svc.searchCompanies({ query: 'ACME.EX' })))).toHaveLength(1);
+      expect((await run(() => svc.searchCompanies({ query: '123 456 785' })))).toHaveLength(1);
+      expect(await run(() => svc.searchCompanies({ query: '  ' }))).toEqual([]);
+    });
+
+    it('listCompanies filters by tag, owner, "me" and unowned', async () => {
+      await run(() => svc.createCompany({ name: 'Mine', tags: ['prospect'], ownerUserId: memberUserId }));
+      await run(() => svc.createCompany({ name: 'Nobody', tags: ['prospect'] }));
+      await run(() => svc.createCompany({ name: 'Other' }));
+      const names = (list: { name: string }[]) => list.map((c) => c.name).sort();
+      expect(names(await run(() => svc.listCompanies({ tag: 'prospect' })))).toEqual(['Mine', 'Nobody']);
+      expect(names(await run(() => svc.listCompanies({ ownerUserId: memberUserId })))).toEqual(['Mine']);
+      expect(names(await run(() => svc.listCompanies({ ownerUserId: 'me' }), asMember()))).toEqual(['Mine']);
+      expect(names(await run(() => svc.listCompanies({ unowned: true })))).toEqual(['Nobody', 'Other']);
+      await expect(
+        run(() => svc.listCompanies({ ownerUserId: memberUserId, unowned: true })),
+      ).rejects.toThrow(CrmInvalidError);
+    });
+
+    it('"me" resolves to the signed-in person and is refused for a caller with no user', async () => {
+      const co = await run(() => svc.createCompany({ name: 'Acme', ownerUserId: 'me' }), asMember());
+      expect(co.ownerUserId).toBe(memberUserId);
+      await expect(run(() => svc.createCompany({ name: 'Globex', ownerUserId: 'me' }))).rejects.toThrow(
+        /"me" needs a signed-in person/,
+      );
+    });
+
+    it('updateCompany patches fields, merges customFields and clears with null', async () => {
+      const co = await run(() =>
+        svc.createCompany({
+          name: 'Acme',
+          domain: 'acme.example',
+          registration: { country: 'NO', number: '123456785' },
+          customFields: { segment: 'garage', size: 'small' },
+        }),
+      );
+      const updated = await run(() =>
+        svc.updateCompany({
+          id: co.id,
+          patch: {
+            name: 'Acme AS',
+            ownerUserId: memberUserId,
+            customFields: { size: 'medium' },
+            registration: null,
+            domain: null,
+          },
+        }),
+      );
+      expect(updated).toMatchObject({
+        name: 'Acme AS',
+        ownerUserId: memberUserId,
+        domain: null,
+        registrationCountry: null,
+        registrationNumber: null,
+        customFields: { segment: 'garage', size: 'medium' },
+      });
+      const unowned = await run(() => svc.updateCompany({ id: co.id, patch: { ownerUserId: null } }));
+      expect(unowned.ownerUserId).toBeNull();
+    });
+
+    it('updateCompany refuses a registration another company holds but accepts its own', async () => {
+      const acme = await run(() =>
+        svc.createCompany({ name: 'Acme', registration: { country: 'NO', number: '123456785' } }),
+      );
+      const globex = await run(() => svc.createCompany({ name: 'Globex' }));
+      await expect(
+        run(() =>
+          svc.updateCompany({
+            id: globex.id,
+            patch: { registration: { country: 'NO', number: '123 456 785' } },
+          }),
+        ),
+      ).rejects.toThrow(ConflictException);
+      const same = await run(() =>
+        svc.updateCompany({
+          id: acme.id,
+          patch: { registration: { country: 'NO', number: '123.456.785' } },
+        }),
+      );
+      expect(same.registrationNumber).toBe('123456785');
+    });
+
+    it('updateCompany refuses an owner from outside the org and 404s on unknown ids', async () => {
+      const co = await run(() => svc.createCompany({ name: 'Acme' }));
+      await expect(
+        run(() => svc.updateCompany({ id: co.id, patch: { ownerUserId: outsiderUserId } })),
+      ).rejects.toThrow(/not a member of this org/);
+      await expect(
+        run(() => svc.updateCompany({ id: randomUUID(), patch: { name: 'X' } })),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('updateCompany in fill-null mode only fills empty fields', async () => {
+      const co = await run(() => svc.createCompany({ name: 'Acme', domain: 'acme.example' }));
+      const filled = await run(() =>
+        svc.updateCompany({
+          id: co.id,
+          mode: 'fill-null',
+          patch: {
+            name: 'Overwritten',
+            domain: 'other.example',
+            registration: { country: 'NO', number: '123456785' },
+          },
+        }),
+      );
+      expect(filled).toMatchObject({
+        name: 'Acme',
+        domain: 'acme.example',
+        registrationCountry: 'NO',
+        registrationNumber: '123456785',
+      });
+    });
+  });
+
   describe('owner membership', () => {
     it('updateContact accepts an org member as owner and refuses a user from outside the org', async () => {
       const c = await run(() => svc.createContact({ name: 'A', email: 'a@x' }));

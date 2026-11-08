@@ -389,6 +389,78 @@ const skipReason = TEST_URL
       expect(del.content?.[0]?.text).toMatch(/referenced by .*campaign/i);
     });
   }, 30_000);
+
+  it('company tools answer bad input with actionable errors, never a 500', async () => {
+    await withClient(adminKey, async (c) => {
+      type ToolOut = { isError?: boolean; content?: Array<{ text?: string }> };
+      const created = parseToolResult<{ id: string; registrationNumber: string }>(
+        await c.callTool({
+          name: 'crm_create_company',
+          arguments: {
+            name: 'Acme Verksted',
+            domain: 'acme.example',
+            registration: { country: 'NO', number: '123 456 785' },
+          },
+        }),
+      );
+      expect(created.registrationNumber).toBe('123456785');
+
+      const dup = (await c.callTool({
+        name: 'crm_create_company',
+        arguments: { name: 'Acme AS', registration: { country: 'NO', number: '123456785' } },
+      })) as ToolOut;
+      expect(dup.isError).toBe(true);
+      expect(dup.content?.[0]?.text).toContain('crm_company_registration_conflict');
+      expect(dup.content?.[0]?.text).toContain(created.id);
+
+      const badCheck = (await c.callTool({
+        name: 'crm_create_company',
+        arguments: { name: 'Globex', registration: { country: 'NO', number: '123456789' } },
+      })) as ToolOut;
+      expect(badCheck.isError).toBe(true);
+      expect(badCheck.content?.[0]?.text).toContain('crm_invalid');
+
+      const me = (await c.callTool({
+        name: 'crm_update_company',
+        arguments: { id: created.id, patch: { ownerUserId: 'me' } },
+      })) as ToolOut;
+      expect(me.isError).toBe(true);
+      expect(me.content?.[0]?.text).toContain('crm_invalid');
+
+      const missing = (await c.callTool({
+        name: 'crm_get_company',
+        arguments: { id: 'cco_missing' },
+      })) as ToolOut;
+      expect(missing.isError).toBe(true);
+      expect(missing.content?.[0]?.text).toContain('crm_not_found');
+
+      const lookup = parseToolResult<{
+        matches: Array<{ matchedBy: string; company: { id: string } }>;
+        invalid: unknown[];
+      }>(
+        await c.callTool({
+          name: 'crm_lookup_companies',
+          arguments: {
+            registrations: [
+              { country: 'NO', number: 'NO123456785MVA' },
+              { country: 'SE', number: '000000-0018' },
+            ],
+            domains: ['https://www.acme.example/kontakt'],
+          },
+        }),
+      );
+      expect(lookup.matches.map((m) => [m.matchedBy, m.company.id])).toEqual([
+        ['registration', created.id],
+        ['domain', created.id],
+      ]);
+      expect(lookup.invalid).toEqual([]);
+
+      const detail = parseToolResult<{ contactCount: number; openDealCount: number }>(
+        await c.callTool({ name: 'crm_get_company', arguments: { id: created.id } }),
+      );
+      expect(detail).toMatchObject({ contactCount: 0, openDealCount: 0 });
+    });
+  }, 30_000);
 });
 
 function parseToolResult<T>(result: unknown): T {

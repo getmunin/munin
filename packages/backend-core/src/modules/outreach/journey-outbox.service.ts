@@ -21,6 +21,7 @@ import {
 import { OutreachInvalidError } from './outreach-errors.ts';
 import { assertEligible } from './eligibility.ts';
 import { emailTemplateHash } from './email-template-hash.ts';
+import { BUILT_IN_EMAIL_TEMPLATE, renderEmail } from './email-template-render.ts';
 import { personalizeLine } from './merge-fields.ts';
 import { checkSendPolicy, type SendDecision, type SendPolicy } from './send-policy.ts';
 import {
@@ -324,7 +325,6 @@ export class JourneyOutboxService implements ProposalKindHandler {
       contactId: contact.id,
       campaignId: proposal.campaignId ?? proposal.journeyId!,
     });
-    const { renderEmail, BUILT_IN_EMAIL_TEMPLATE } = await import('./email-template-render.ts');
     const mjml = await this.templateMjml(delivery.templateId, BUILT_IN_EMAIL_TEMPLATE);
     const [org] = await ctx.db
       .select({ name: schema.orgs.name })

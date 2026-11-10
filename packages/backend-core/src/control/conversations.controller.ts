@@ -219,7 +219,7 @@ class SaveCustomerLanguageBody extends createZodDto(
 ) {}
 
 interface ConversationDetailResponse extends ConversationDetail {
-  claim: { holderType: 'user'; holderId: string; expiresAt: string } | null;
+  claim: { holderType: 'user'; holderId: string; expiresAt: string | null } | null;
   translations?: ConversationTranslations;
 }
 
@@ -579,7 +579,7 @@ export class ConversationsController {
   async takeOver(
     @Param('id') id: string,
     @Body() input: TakeOverBody,
-  ): Promise<{ holderType: 'user'; holderId: string; expiresAt: string }> {
+  ): Promise<{ holderType: 'user'; holderId: string; expiresAt: string | null }> {
     const ttlMs = input.ttlMinutes ? input.ttlMinutes * 60_000 : undefined;
     const claim = await translate(() =>
       this.claims.claim({ conversationId: id, ttlMs, force: true }),

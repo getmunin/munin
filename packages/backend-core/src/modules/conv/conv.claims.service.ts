@@ -1,10 +1,14 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 
 const ENTITY_TYPE = 'conversation';
-const DEFAULT_TTL_MS = 30 * 60 * 1000;
+export const REPLY_CLAIM_TTL_MS = 30 * 60 * 1000;
+
+export function claimIsActive(): SQL {
+  return sql`(${schema.claims.expiresAt} IS NULL OR ${schema.claims.expiresAt} > now())`;
+}
 
 export class ClaimedByOtherError extends Error {
   readonly code = 'claim_held_by_other';
@@ -19,7 +23,7 @@ export interface ConversationClaim {
   conversationId: string;
   holderType: ClaimHolderType;
   holderId: string;
-  expiresAt: string;
+  expiresAt: string | null;
   createdAt: string;
 }
 
@@ -48,8 +52,7 @@ export class ConversationClaimsService {
       throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
     }
 
-    const ttlMs = input.ttlMs ?? DEFAULT_TTL_MS;
-    const expiresAt = new Date(Date.now() + ttlMs);
+    const requestedExpiry = input.ttlMs === undefined ? null : new Date(Date.now() + input.ttlMs);
 
     const existing = await this.findActiveClaim(input.conversationId);
     const displacing = existing && holderIdOf(existing) !== claimer.id;
@@ -58,6 +61,7 @@ export class ConversationClaimsService {
     }
 
     if (existing) {
+      const expiresAt = !displacing && existing.expiresAt === null ? null : requestedExpiry;
       const previousHolderId = holderIdOf(existing);
       const [refreshed] = await ctx.db
         .update(schema.claims)
@@ -83,11 +87,11 @@ export class ConversationClaimsService {
         entityType: ENTITY_TYPE,
         entityId: input.conversationId,
         userId: claimer.id,
-        expiresAt,
+        expiresAt: requestedExpiry,
       })
       .returning();
 
-    await this.emitClaimed(input.conversationId, claimer.id, expiresAt);
+    await this.emitClaimed(input.conversationId, claimer.id, requestedExpiry);
 
     return toConversationClaim(row!);
   }
@@ -95,7 +99,7 @@ export class ConversationClaimsService {
   private async emitClaimed(
     conversationId: string,
     holderId: string,
-    expiresAt: Date,
+    expiresAt: Date | null,
   ): Promise<void> {
     await this.webhooks.emit({
       type: 'conversation.taken_over',
@@ -103,7 +107,7 @@ export class ConversationClaimsService {
         conversationId,
         holderType: 'user',
         holderId,
-        expiresAt: expiresAt.toISOString(),
+        expiresAt: expiresAt?.toISOString() ?? null,
       },
     });
   }
@@ -190,7 +194,7 @@ export class ConversationClaimsService {
         and(
           eq(schema.claims.entityType, ENTITY_TYPE),
           eq(schema.claims.entityId, conversationId),
-          gt(schema.claims.expiresAt, sql`now()`),
+          claimIsActive(),
         ),
       )
       .limit(1);
@@ -217,7 +221,7 @@ function toConversationClaim(row: typeof schema.claims.$inferSelect): Conversati
     conversationId: row.entityId,
     holderType: 'user',
     holderId: holderIdOf(row),
-    expiresAt: row.expiresAt.toISOString(),
+    expiresAt: row.expiresAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }

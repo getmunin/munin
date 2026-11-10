@@ -6,6 +6,7 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { claimIsActive } from '../modules/conv/conv.claims.service.ts';
 
 interface RosterMemberDto {
   userId: string;
@@ -49,7 +50,7 @@ export class RosterController {
       .where(
         and(
           eq(schema.claims.entityType, 'conversation'),
-          sql`${schema.claims.expiresAt} > now()`,
+          claimIsActive(),
         ),
       )
       .groupBy(schema.claims.userId);

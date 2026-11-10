@@ -82,7 +82,7 @@ export interface ConversationTranslations {
 
 export interface ConversationDetail extends ConversationSummary {
   messages: MessageDto[];
-  claim: { holderType: 'user'; holderId: string; expiresAt: string } | null;
+  claim: { holderType: 'user'; holderId: string; expiresAt: string | null } | null;
   customerLanguage?: string | null;
   translations?: ConversationTranslations;
   contactEmail: string | null;

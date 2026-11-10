@@ -9,6 +9,7 @@ import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
 import { slackAvatarFilename } from './slack-avatars.controller.ts';
 import { decryptSecretValue } from './slack.service.ts';
+import { claimIsActive } from '../conv/conv.claims.service.ts';
 import {
   approvalBlocks,
   approvalResolvedLine,
@@ -1544,10 +1545,10 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         and(
           eq(schema.claims.entityType, 'conversation'),
           eq(schema.claims.entityId, conversation.id),
-          sql`${schema.claims.expiresAt} > now()`,
+          claimIsActive(),
         ),
       )
-      .orderBy(sql`${schema.claims.expiresAt} DESC`)
+      .orderBy(sql`${schema.claims.expiresAt} DESC NULLS FIRST`)
       .limit(1);
     let claimedBy: string | null = null;
     if (claim?.userId) claimedBy = (await this.userName(claim.userId)) ?? 'a teammate';

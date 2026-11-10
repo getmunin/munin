@@ -17,7 +17,7 @@ const AGENT_WORKING_POLL_MS = 2_000;
 export interface QueueClaim {
   holderId: string;
   holderName: string | null;
-  expiresAt: string;
+  expiresAt: string | null;
 }
 
 export interface QueueItemDto {

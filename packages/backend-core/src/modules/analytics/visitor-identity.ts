@@ -26,7 +26,7 @@ export function normalizeIdentityEmail(email: string | null | undefined): string
 
 const SYNTHETIC_ID_PREFIXES = ['email:', 'phone:', 'anon:'];
 
-function isProvisionalIdentity(externalId: string | null): boolean {
+export function isProvisionalIdentity(externalId: string | null): boolean {
   return externalId === null || SYNTHETIC_ID_PREFIXES.some((p) => externalId.startsWith(p));
 }
 

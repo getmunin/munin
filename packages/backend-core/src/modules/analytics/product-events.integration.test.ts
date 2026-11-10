@@ -139,6 +139,48 @@ const skipReason = TEST_URL
     expect(result!.endUserId).toMatch(/^eu_/);
   });
 
+  it('links the unlinked contact holding the attested email to the signed-in end user', async () => {
+    const ola = await contact({ name: 'Ola Nordmann', email: 'ola@acme.test' });
+    const [result] = await asAgent(() =>
+      svc.record([
+        {
+          id: 'evt-link',
+          name: 'pricing.viewed',
+          identity: { externalId: 'acct-7', email: 'ola@acme.test' },
+        },
+      ]),
+    );
+    expect(result!.contactId).toBe(ola.id);
+    const [linked] = await db
+      .select({ endUserId: schema.crmContacts.endUserId })
+      .from(schema.crmContacts)
+      .where(eq(schema.crmContacts.id, ola.id));
+    expect(linked!.endUserId).toBe(result!.endUserId);
+  });
+
+  it('leaves a contact already linked to another end user where it is', async () => {
+    const [someoneElse] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'acct-other' })
+      .returning();
+    const kari = await contact({
+      name: 'Kari Nordmann',
+      email: 'kari@acme.test',
+      endUserId: someoneElse!.id,
+    });
+    const [result] = await asAgent(() =>
+      svc.record([
+        { id: 'evt-held', name: 'pricing.viewed', identity: { externalId: 'acct-8', email: 'kari@acme.test' } },
+      ]),
+    );
+    expect(result!.endUserId).not.toBe(someoneElse!.id);
+    const [row] = await db
+      .select({ endUserId: schema.crmContacts.endUserId })
+      .from(schema.crmContacts)
+      .where(eq(schema.crmContacts.id, kari.id));
+    expect(row!.endUserId).toBe(someoneElse!.id);
+  });
+
   it('rejects a contact id from another organization', async () => {
     const [foreign] = await db
       .insert(schema.crmContacts)

@@ -16,6 +16,7 @@ import { ConversationClaimsService } from './conv.claims.service.ts';
 import { ConvAdminTools } from './conv.tools.ts';
 import { ConvSelfServiceTools } from './conv.self-service.tools.ts';
 import { EmailService } from './email/email.service.ts';
+import { EmailConversationStarter } from './email/email-conversation-starter.service.ts';
 import { EmailAdminTools } from './email/email.tools.ts';
 import { EmailChannelProbe } from './email/email-probe.service.ts';
 import { EmailAdapter } from './email/email-adapter.ts';
@@ -109,6 +110,7 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     EmailChannelProbe,
     ChannelReactivationService,
     EmailAdminTools,
+    EmailConversationStarter,
     ChannelCredentialService,
     ChannelCredentialTools,
     EmailAdapter,
@@ -212,6 +214,7 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     EmailAdapter,
     EmailRelayService,
     EmailAdminTools,
+    EmailConversationStarter,
     MessageBirdClientService,
     MessageBirdSmsService,
     MessageBirdSmsAdapter,

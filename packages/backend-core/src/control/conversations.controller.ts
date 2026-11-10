@@ -18,6 +18,11 @@ import { getCurrentContext } from '@getmunin/core';
 import { MessageComponentsSchema } from '@getmunin/types';
 import { ConvAttachmentsService } from '../modules/conv/attachments/conv-attachments.service.ts';
 import {
+  EmailConversationStarter,
+  StartEmailConversationInput,
+  type StartedEmailConversation,
+} from '../modules/conv/email/email-conversation-starter.service.ts';
+import {
   ConvTranslationService,
   type ConversationTranslations,
   type LanguageDetectionSample,
@@ -79,6 +84,8 @@ class SetTopicAgentModeBody extends createZodDto(
     promoteThresholdPct: z.number().int().min(50).max(100).optional(),
   }),
 ) {}
+
+class StartEmailConversationBody extends createZodDto(StartEmailConversationInput) {}
 
 class SendReplyBody extends createZodDto(
   z.object({
@@ -234,6 +241,7 @@ export class ConversationsController {
     private readonly automation: ConvAutomationService,
     private readonly attachments: ConvAttachmentsService,
     private readonly translation: ConvTranslationService,
+    private readonly emailStarter: EmailConversationStarter,
   ) {}
 
   @Get()
@@ -391,6 +399,12 @@ export class ConversationsController {
       }),
     );
     return { items };
+  }
+
+  @Post('email')
+  @HttpCode(201)
+  async startEmail(@Body() input: StartEmailConversationBody): Promise<StartedEmailConversation> {
+    return translate(() => this.emailStarter.start(input));
   }
 
   @Post('test-message')

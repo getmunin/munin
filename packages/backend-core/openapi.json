@@ -5949,6 +5949,38 @@
         ]
       }
     },
+    "/v1/conversations/email": {
+      "post": {
+        "operationId": "ConversationsController_startEmail",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartEmailConversationBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/test-message": {
       "post": {
         "operationId": "ConversationsController_createTestMessage",
@@ -13006,6 +13038,50 @@
         },
         "required": [
           "mode"
+        ]
+      },
+      "StartEmailConversationBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "Address the conversation is sent to."
+          },
+          "name": {
+            "description": "Recipient's name, used when this address has no contact yet.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          },
+          "channelId": {
+            "description": "Email channel to send from. Required when the org has more than one active email channel.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "topicId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "email",
+          "subject",
+          "body"
         ]
       },
       "SendReplyBody": {

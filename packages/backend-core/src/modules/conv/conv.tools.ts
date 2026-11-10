@@ -16,6 +16,10 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
 import { CONV_ATTACHMENT_PER_MESSAGE_MAX } from './attachments/conv-attachments.constants.ts';
 import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
+import {
+  EmailConversationStarter,
+  StartEmailConversationInput,
+} from './email/email-conversation-starter.service.ts';
 
 const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
 const StatusSchema = z.enum(STATUSES);
@@ -258,6 +262,7 @@ export class ConvAdminTools {
     @Inject(ConvAttachmentsService) private readonly attachments: ConvAttachmentsService,
     @Inject(InboundRedactionService) private readonly redaction: InboundRedactionService,
     @Inject(RedactBackfillService) private readonly redactBackfill: RedactBackfillService,
+    @Inject(EmailConversationStarter) private readonly emailStarter: EmailConversationStarter,
   ) {}
 
   @McpTool({
@@ -338,6 +343,21 @@ export class ConvAdminTools {
       authorType: actor.type === 'user' ? 'user' : 'agent',
       authorId: actor.id,
     });
+  }
+
+  @McpTool({
+    name: 'conv_start_email_conversation',
+    title: 'Conv: Start an email conversation',
+    description:
+      "Start a new email thread with an address, sent from one of the org's email channels, and return the conversation. Reuses the contact for that address or creates one. When a signed-in person calls it the message is sent right away (`delivery: \"queued\"`); when an agent calls it the message is stored as a draft on the new conversation and only goes out once a person approves it in the inbox (`delivery: \"awaiting_approval\"`). Refused for an address whose CRM contact is marked do-not-contact or whose mail is known to bounce. For one-to-one messages; campaigns and broadcasts to many recipients go through outreach.",
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: StartEmailConversationInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  startEmailConversation(args: z.infer<typeof StartEmailConversationInput>) {
+    return this.emailStarter.start(args);
   }
 
   @McpTool({

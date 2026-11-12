@@ -8,6 +8,7 @@ import { stableBucket } from './journey-time.ts';
 import { JourneyRuntimeService } from './journey-runtime.service.ts';
 import { checkSendPolicy } from '../outreach/send-policy.ts';
 import { personalizeLine, personalizeText, type MergeValues } from '../outreach/merge-fields.ts';
+import { BUILT_IN_EMAIL_TEMPLATE, renderEmail } from '../outreach/email-template-render.ts';
 
 const MAX_STEPS = 100;
 
@@ -395,7 +396,6 @@ export class JourneySimulator {
     opts: { unsubscribeUrl?: string } = {},
   ): Promise<{ html: string; text: string; subject: string }> {
     const ctx = getCurrentContext();
-    const { renderEmail, BUILT_IN_EMAIL_TEMPLATE } = await import('../outreach/email-template-render.ts');
     const t = schema.outreachEmailTemplates;
     const [template] = await ctx.db
       .select({ mjml: t.mjml })

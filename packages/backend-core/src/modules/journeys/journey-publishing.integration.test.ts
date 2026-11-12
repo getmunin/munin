@@ -277,6 +277,36 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(event!.payload).toMatchObject({ journeyId: journey.id, version: 1, publishedBy: userId });
   });
 
+  it('publishes several auto email steps even though jsonb re-orders their pinned templates', async () => {
+    const email = (id: string, next: string) => ({
+      id,
+      type: 'message',
+      channel: 'email',
+      approval: 'auto',
+      content: { subject: id, body: `Hei {{name}} fra ${id}` },
+      next,
+    });
+    const journey = await asAgent(() =>
+      journeys.create({
+        name: 'Onboarding',
+        outreachCampaignId: campaignId,
+        spec: spec({
+          start: 'welcome_family',
+          nodes: [email('welcome_family', 'tip'), email('tip', 'done'), { id: 'done', type: 'exit' }],
+        }),
+      }),
+    );
+    const request = await asAgent(() => publishing.requestPublish(journey.id));
+    const [stored] = await db
+      .select({ pinned: schema.journeyVersions.pinnedTemplates })
+      .from(schema.journeyVersions)
+      .where(eq(schema.journeyVersions.journeyId, journey.id));
+    expect(Object.keys(stored!.pinned)).toEqual(['tip', 'welcome_family']);
+
+    const live = await asPerson(() => publishing.confirmPublish(journey.id, 1, request.fingerprint));
+    expect(live).toMatchObject({ status: 'live', liveVersion: 1 });
+  });
+
   it('cancels a pending publish request when the draft is edited, and diffs against live', async () => {
     const journey = await asAgent(() => journeys.create({ name: 'Trial', outreachCampaignId: campaignId, spec: spec() }));
     const first = await asAgent(() => publishing.requestPublish(journey.id));

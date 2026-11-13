@@ -1,5 +1,12 @@
 # @getmunin/chat-widget
 
+## 5.53.0
+
+### Patch Changes
+
+- Updated dependencies [cf2d407]
+  - @getmunin/types@5.53.0
+
 ## 5.52.1
 
 ### Patch Changes

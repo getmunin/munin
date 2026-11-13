@@ -2117,7 +2117,7 @@
           "removeFilter": "Remove the {dimension} filter",
           "status": "Status",
           "statusOption": {
-            "any": "Any status",
+            "any": "All except spam",
             "open": "Open",
             "snoozed": "Snoozed",
             "closed": "Closed",

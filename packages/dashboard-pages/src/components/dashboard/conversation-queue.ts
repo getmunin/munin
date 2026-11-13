@@ -114,7 +114,13 @@ export function buildQueueFilterQuery(
     params.set('since', new Date(now - SINCE_DAYS[filters.since] * 86_400_000).toISOString());
   }
   if (search.trim()) params.set('q', search.trim());
+  if (filters.status === 'any' && params.toString()) params.set('excludeStatus', 'spam');
   return params.toString();
+}
+
+export function withQueueOrigin(filters: QueueFilters, origin: QueueOriginFilter): QueueFilters {
+  const status = origin === 'spam_sender' && filters.status === 'any' ? 'spam' : filters.status;
+  return { ...filters, origin, status };
 }
 
 interface QueuePageResponse {

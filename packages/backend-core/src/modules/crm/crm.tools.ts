@@ -102,15 +102,67 @@ const SearchContactsInput = z.object({
   limit: z.number().int().positive().max(100).optional(),
 });
 
+const OwnerUserIdSchema = z
+  .string()
+  .min(1)
+  .describe('User id of an org member, or "me" for the signed-in person making the call.');
+
+const RegistrationSchema = z.object({
+  country: z
+    .string()
+    .length(2)
+    .describe('Two-letter ISO 3166 code of the country whose business registry issued the number, e.g. NO, SE, DK, FI, GB.'),
+  number: z
+    .string()
+    .min(1)
+    .max(64)
+    .describe('The registry number as written (orgnr, organisationsnummer, CVR, Y-tunnus, Companies House number). Spaces, dots and dashes are ignored.'),
+});
+
 const ListCompaniesInput = z.object({
+  tag: z.string().optional(),
+  ownerUserId: OwnerUserIdSchema.optional(),
+  unowned: z.boolean().optional().describe('Only companies with no owner.'),
   limit: z.number().int().positive().max(200).optional(),
+});
+
+const GetCompanyInput = z.object({ id: z.string() });
+
+const SearchCompaniesInput = z.object({
+  query: z.string().min(1).max(200),
+  limit: z.number().int().positive().max(100).optional(),
+});
+
+const LookupCompaniesInput = z.object({
+  registrations: z.array(RegistrationSchema).max(200).optional(),
+  domains: z.array(z.string().min(1).max(200)).max(200).optional(),
 });
 
 const CreateCompanyInput = z.object({
   name: z.string().min(1).max(200),
   domain: z.string().max(200).optional(),
+  registration: RegistrationSchema.optional(),
+  ownerUserId: OwnerUserIdSchema.optional(),
   tags: TagsSchema.optional(),
   customFields: z.record(z.string(), z.unknown()).optional(),
+});
+
+const UpdateCompanyInput = z.object({
+  id: z.string(),
+  patch: z.object({
+    name: z.string().min(1).max(200).optional(),
+    domain: z.string().max(200).nullable().optional(),
+    registration: RegistrationSchema.nullable().optional(),
+    ownerUserId: OwnerUserIdSchema.nullable().optional(),
+    tags: TagsSchema.optional(),
+    customFields: z.record(z.string(), z.unknown()).optional(),
+  }),
+  mode: z
+    .enum(['fill-null', 'overwrite'])
+    .optional()
+    .describe(
+      "When 'fill-null', only applies patch keys whose current value on the company is empty. Default 'overwrite' applies the patch as-is.",
+    ),
 });
 
 const CreatePipelineInput = z.object({
@@ -488,7 +540,8 @@ export class CrmAdminTools {
   @McpTool({
     name: 'crm_list_companies',
     title: 'CRM: List companies',
-    description: 'List companies in your org.',
+    description:
+      'List companies in your org, newest-updated first. Filter by tag, by owner (`ownerUserId`, or `"me"` for the signed-in person), or to companies nobody owns yet (`unowned: true`).',
     audiences: ['admin'],
     scopes: ['crm:read'],
     input: ListCompaniesInput,
@@ -500,9 +553,55 @@ export class CrmAdminTools {
   }
 
   @McpTool({
+    name: 'crm_get_company',
+    title: 'CRM: Read company',
+    description:
+      'Read one company: name, domain, business registration, owner, tags, custom fields and AI fields, plus how many contacts belong to it (`contactCount`) and how many of its deals are still in an open stage (`openDealCount`).',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: GetCompanyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getCompany(args: z.infer<typeof GetCompanyInput>) {
+    return this.crm.getCompanyDetail(args.id);
+  }
+
+  @McpTool({
+    name: 'crm_search_companies',
+    title: 'CRM: Search companies',
+    description:
+      'Search companies by part of their name or domain (case-insensitive), or by an exact registration number with spaces, dots and dashes ignored. Newest-updated first.',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: SearchCompaniesInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  searchCompanies(args: z.infer<typeof SearchCompaniesInput>) {
+    return this.crm.searchCompanies(args);
+  }
+
+  @McpTool({
+    name: 'crm_lookup_companies',
+    title: 'CRM: Look up companies by registration or domain',
+    description:
+      'Check which of up to 200 business registrations and 200 website domains already belong to a company in the CRM — for example a list of prospects from a business registry, before creating any of them. Inputs are normalized the way companies are stored, so `NO 123 456 785 MVA` matches `123456785` and `https://www.acme.example/about` matches `acme.example`. Returns only the inputs that matched, each with its company, plus `invalid` for registrations that are not a valid number for their country. An input with no match is simply absent.',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: LookupCompaniesInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  lookupCompanies(args: z.infer<typeof LookupCompaniesInput>) {
+    return this.crm.lookupCompanies(args);
+  }
+
+  @McpTool({
     name: 'crm_create_company',
     title: 'CRM: Create company',
-    description: 'Create a new company.',
+    description:
+      'Create a new company. `registration` is its national business registration: the registry\'s country code and number. The number is normalized, and for NO, SE, DK and FI its check digit is verified. An org holds each registration once, so a duplicate fails with `crm_company_registration_conflict` naming the company that has it. `ownerUserId` must be an org member, or `"me"`.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: CreateCompanyInput,
@@ -511,6 +610,21 @@ export class CrmAdminTools {
   })
   createCompany(args: z.infer<typeof CreateCompanyInput>) {
     return this.crm.createCompany(args);
+  }
+
+  @McpTool({
+    name: 'crm_update_company',
+    title: 'CRM: Update company',
+    description:
+      "Update fields on a company. Only keys present in `patch` are touched. `customFields` is a partial patch — keys you send replace the corresponding keys, keys you omit are kept, and `key: null` clears one. `registration: null` removes the registration; a registration another company already holds fails with `crm_company_registration_conflict`. `ownerUserId` must be an org member or `\"me\"`, and `null` clears the owner. Pass `mode: 'fill-null'` from automated contexts so existing values are never overwritten.",
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: UpdateCompanyInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  updateCompany(args: z.infer<typeof UpdateCompanyInput>) {
+    return this.crm.updateCompany(args);
   }
 
   @McpTool({

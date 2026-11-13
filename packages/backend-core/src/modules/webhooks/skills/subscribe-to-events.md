@@ -27,7 +27,7 @@ Returns event type strings grouped by module. The catalog at time of writing:
 
 - **CMS** — `cms.collection.created`, `cms.collection.fields_changed`, `cms.entry.created`, `cms.entry.updated`, `cms.entry.published`, `cms.entry.unpublished`, `cms.entry.scheduled`, `cms.entry.archived`, `cms.entry.deleted`
 - **Conv** — `conversation.created`, `conversation.subject_changed`, `conversation.status_changed`, `conversation.assigned`, `conversation.released`, `conversation.taken_over`, `conversation.agent_mode_changed`, `conversation.topic_automation_changed`, `conversation.handover_requested`, `conversation.handover_resolved`, `conversation.greet_requested`, `conversation.draft_requested`, `conversation.draft_ready`, `conversation.translation_requested`, `conversation.translated`, `conversation.language_detected`, `conversation.note_added`, `conversation.message.received`, `conversation.message.sent`, `conversation.message.body_revised`, `conversation.message.opened`, `conversation.message.read`, `conversation.voice.call_ended`
-- **CRM** — `crm.contact.created`, `crm.contact.updated`, `crm.company.created`, `crm.deal.created`, `crm.deal.stage_changed`, `crm.activity.logged`, `crm.merge_proposal.proposed`
+- **CRM** — `crm.contact.created`, `crm.contact.updated`, `crm.company.created`, `crm.company.updated`, `crm.deal.created`, `crm.deal.stage_changed`, `crm.activity.logged`, `crm.merge_proposal.proposed`
 - **KB** — `kb.document.created`, `kb.document.updated`, `kb.document.deleted`
 - **Outreach** — `outreach.proposal.created`, `outreach.proposal.updated`, `outreach.proposal.sent`, `outreach.proposal.dismissed`
 - **System** — `org_alert.opened`, `org_alert.acknowledged`, `org_alert.resolved`, `curator_job.pending`
@@ -179,7 +179,11 @@ ISR / on-demand revalidation is the lighter-weight alternative — just revalida
 
 ### Deal stage change → Slack
 
-Subscribe to `crm.deal.stage_changed`. Look at `payload.fromStage` / `payload.toStage`. Filter for stages you care about (e.g. anything → "Closed Won") and post into a sales channel. Skip the others server-side rather than subscribing to everything and discarding.
+Subscribe to `crm.deal.stage_changed`. The payload carries `dealId`, the new `stageId`, its `winLoss` (`open`, `won` or `lost`), `closedAt`, `contactId` and `companyId`. Filter for the outcomes you care about (e.g. `winLoss: "won"`) and post into a sales channel; resolve a stage name with `crm_list_pipelines` if you need one. Skip the others server-side rather than subscribing to everything and discarding.
+
+### Company and deal feed → a partner or parent system
+
+When companies are worked in one org and another system needs to know about them (a vendor tracking which reseller is working which company, a data warehouse), subscribe to `crm.company.created`, `crm.company.updated`, `crm.deal.created` and `crm.deal.stage_changed`. Company payloads carry `companyId` plus the business registration (`registrationCountry`, `registrationNumber`, both `null` when the company has none); `crm.company.created` adds `name` and `domain`, and `crm.company.updated` lists the changed `fields`. Both deal events carry `companyId`. Key the receiver on country + registration number rather than on name or `companyId`: ids are per-org, while the registration is the same company everywhere, so two orgs working the same company show up as the same key.
 
 ## 5. Operations
 

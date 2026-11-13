@@ -15,6 +15,7 @@ export const CRM_EVENT_TYPES = [
   'crm.contact.updated',
   'crm.contact.unsubscribed',
   'crm.company.created',
+  'crm.company.updated',
   'crm.deal.created',
   'crm.deal.stage_changed',
   'crm.activity.logged',

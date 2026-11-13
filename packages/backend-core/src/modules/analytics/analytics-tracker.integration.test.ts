@@ -9,6 +9,7 @@ import { sql } from 'drizzle-orm';
 import { createApp } from '../../bootstrap-app.ts';
 import { AppModule } from '../../app.module.ts';
 import { findOrCreateEndUserByEmail } from '../conv/end-user-by-email.ts';
+import { JourneyRuntimeWorker } from '../journeys/journey-runtime.worker.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -1572,6 +1573,139 @@ const skipReason = TEST_URL
       .where(sql`org_id = ${orgId} AND lower(email) = ${email}`);
     expect(holders).toHaveLength(1);
     expect(holders[0]!.id).toBe(rival!.id);
+  }, 30_000);
+
+  it('hands a signed-in visitor\'s page views to a journey waiting for them, once per view, and enters them with the contact identify linked', async () => {
+    const { orgId: pageOrg, key: pageAdminKey } = await createSeedOrg(db, 'Page View Org');
+    const minted = await withClient(pageAdminKey, async (c) =>
+      parseToolResult<{ trackerKey: string; identityVerificationSecret: string }>(
+        await c.callTool({ name: 'analytics_create_tracker', arguments: { name: 'page view tracker' } }),
+      ),
+    );
+    const email = 'kari.nordmann@example.no';
+    const [kari] = await db
+      .insert(schema.crmContacts)
+      .values({ orgId: pageOrg, name: 'Kari Nordmann', email })
+      .returning({ id: schema.crmContacts.id });
+    const [journey] = await db
+      .insert(schema.journeys)
+      .values({
+        orgId: pageOrg,
+        name: 'Pricing visitors',
+        status: 'live',
+        liveVersion: 1,
+        createdByActorType: 'user',
+        createdByActorId: 'usr_page_view_test',
+      })
+      .returning({ id: schema.journeys.id });
+    await db.insert(schema.journeyVersions).values({
+      orgId: pageOrg,
+      journeyId: journey!.id,
+      number: 1,
+      spec: {
+        entry: { trigger: { type: 'event', event: 'analytics.page.viewed', where: { subjectId: '/pricing' } } },
+        goal: { event: 'subscription.started', windowDays: 30 },
+        start: 'done',
+        nodes: [{ id: 'done', type: 'exit' }],
+      },
+      specHash: 'page-view-test',
+      publishedAt: new Date(),
+      createdByActorType: 'user',
+      createdByActorId: 'usr_page_view_test',
+    });
+
+    const visitorId = 'visitor-page-view-1';
+    const externalId = 'acct-page-view-1';
+    const identified = await postIdentify(minted.trackerKey, {
+      visitorId,
+      externalId,
+      email,
+      userHash: signHmac(identityHashPayload({ externalId, visitorId, email }), minted.identityVerificationSecret),
+    });
+    expect(identified.status).toBe(204);
+    const [linked] = await db
+      .select({ endUserId: schema.crmContacts.endUserId })
+      .from(schema.crmContacts)
+      .where(sql`id = ${kari!.id}`);
+    expect(linked!.endUserId).toMatch(/^eu_/);
+
+    const [anon] = await db
+      .insert(schema.endUsers)
+      .values({ orgId: pageOrg, externalId: 'anon:page-view-widget' })
+      .returning({ id: schema.endUsers.id });
+    await db
+      .insert(schema.analyticsVisitorIdentities)
+      .values({ orgId: pageOrg, visitorId: 'visitor-page-view-anon', endUserId: anon!.id });
+
+    const viewId = '6f1c2b8e-1d2a-4c0e-9a51-2b7f0d3c4e5a';
+    const beacon = (body: Record<string, unknown>) =>
+      postBeacon(baseUrl, { key: minted.trackerKey, subjectId: '/pricing', path: '/pricing?plan=pro', ...body });
+    expect(await beacon({ visitorId, viewId })).toBe(204);
+    expect(await beacon({ visitorId, viewId, dwellMs: 4_000, readDepth: 50 })).toBe(204);
+    expect(await beacon({ visitorId: 'visitor-page-view-unknown' })).toBe(204);
+    expect(await beacon({ visitorId: 'visitor-page-view-anon' })).toBe(204);
+
+    const inbox = await db
+      .select({ type: schema.journeyEventInbox.type, payload: schema.journeyEventInbox.payload })
+      .from(schema.journeyEventInbox)
+      .where(sql`org_id = ${pageOrg}`);
+    expect(inbox.map((row) => row.type)).toEqual(['analytics.page.viewed']);
+    expect(inbox[0]!.payload).toMatchObject({
+      endUserId: linked!.endUserId,
+      properties: { subjectType: 'page', subjectId: '/pricing', path: '/pricing?plan=pro' },
+    });
+    expect(Object.keys(inbox[0]!.payload.properties as object).sort()).toEqual(['path', 'subjectId', 'subjectType']);
+
+    await app.get(JourneyRuntimeWorker).tick();
+    const enrollments = await db
+      .select({ contactId: schema.journeyEnrollments.contactId, endUserId: schema.journeyEnrollments.endUserId })
+      .from(schema.journeyEnrollments)
+      .where(sql`journey_id = ${journey!.id}`);
+    expect(enrollments).toEqual([{ contactId: kari!.id, endUserId: linked!.endUserId }]);
+
+    await db.delete(schema.orgs).where(sql`id = ${pageOrg}`);
+  }, 30_000);
+
+  it('writes no journey events for page views while no live journey waits for them', async () => {
+    const { orgId: quietOrg, key: quietAdminKey } = await createSeedOrg(db, 'Quiet Page View Org');
+    const minted = await withClient(quietAdminKey, async (c) =>
+      parseToolResult<{ trackerKey: string; identityVerificationSecret: string }>(
+        await c.callTool({ name: 'analytics_create_tracker', arguments: { name: 'quiet tracker' } }),
+      ),
+    );
+    const [draft] = await db
+      .insert(schema.journeys)
+      .values({
+        orgId: quietOrg,
+        name: 'Pricing visitors draft',
+        createdByActorType: 'user',
+        createdByActorId: 'usr_page_view_test',
+      })
+      .returning({ id: schema.journeys.id });
+    await db.insert(schema.journeyVersions).values({
+      orgId: quietOrg,
+      journeyId: draft!.id,
+      number: 1,
+      spec: { entry: { trigger: { type: 'event', event: 'analytics.page.viewed' } }, start: 'done', nodes: [{ id: 'done', type: 'exit' }] },
+      specHash: 'page-view-draft',
+      createdByActorType: 'user',
+      createdByActorId: 'usr_page_view_test',
+    });
+    const visitorId = 'visitor-quiet-1';
+    const externalId = 'acct-quiet-1';
+    const identified = await postIdentify(minted.trackerKey, {
+      visitorId,
+      externalId,
+      userHash: signHmac(identityHashPayload({ externalId, visitorId, email: null }), minted.identityVerificationSecret),
+    });
+    expect(identified.status).toBe(204);
+
+    expect(await postBeacon(baseUrl, { key: minted.trackerKey, subjectId: '/pricing', visitorId })).toBe(204);
+    expect(await countTrackerEvents(db, quietOrg, '/pricing')).toBe(1);
+    const inbox = await db.select().from(schema.journeyEventInbox).where(sql`org_id = ${quietOrg}`);
+    expect(inbox).toEqual([]);
+
+    await db.delete(schema.orgs).where(sql`id = ${quietOrg}`);
   }, 30_000);
 
   it('requireVerifiedIdentity drops unidentified beacons; verified beacons persist', async () => {

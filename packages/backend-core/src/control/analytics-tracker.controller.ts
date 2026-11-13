@@ -32,6 +32,7 @@ import { DB } from '../common/db/db.module.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
 import { canonicalizeSubjectId } from '../modules/analytics/canonical-subject.ts';
 import { GeoIpService } from '../modules/analytics/geoip.service.ts';
+import { linkEndUserContact } from '../modules/crm/end-user-contact.ts';
 import { ingestMetadata, truncatedString } from '../modules/analytics/ingest-fields.ts';
 import {
   linkVisitorToEndUser,
@@ -300,6 +301,12 @@ export class AnalyticsTrackerController {
           );
         }
         await linkVisitorToEndUser(tx, tracker.orgId, body.visitorId, resolution.endUserId);
+        await linkEndUserContact(
+          tx,
+          tracker.orgId,
+          resolution.endUserId,
+          resolution.outcome === 'email-held-by-another-identity' ? null : email,
+        );
       });
     } catch (err) {
       this.logger.warn(`identify.persist_failed: ${(err as Error).message}`);

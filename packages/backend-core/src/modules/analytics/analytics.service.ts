@@ -3,6 +3,7 @@ import { schema, type Db } from '@getmunin/db';
 import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, randomToken } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
+import { isProvisionalIdentity } from './visitor-identity.ts';
 import { mintApiKey } from '../../common/api-keys/api-key.helpers.ts';
 import { assertOriginAllowlistPopulated } from '../../common/allowlist.ts';
 import {
@@ -22,6 +23,8 @@ import {
   REDACTED,
 } from '../../common/transfer/transfer.types.ts';
 
+export const PAGE_VIEW_EVENT_TYPE = 'analytics.page.viewed';
+const PAGE_VIEW_LISTENER_TTL_MS = 60_000;
 const ANALYTICS_MODULE = 'analytics';
 const DEFAULT_EVENT_PAGE_SIZE = 200;
 
@@ -215,6 +218,7 @@ type ViewSource = 'pixel' | 'beacon' | 'tracker';
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
+  private readonly pageViewListeners = new Map<string, { listens: boolean; until: number }>();
 
   constructor(@Inject(DB) private readonly db: Db) {}
 
@@ -245,21 +249,24 @@ export class AnalyticsService {
         country: normalizeCountry(input.country),
         metadata: input.metadata ?? null,
       };
-      if (!clientViewId) {
-        await this.db.insert(schema.analyticsViewEvents).values(values);
-        return;
+      const t = schema.analyticsViewEvents;
+      const [row] = clientViewId
+        ? await this.db
+            .insert(t)
+            .values(values)
+            .onConflictDoUpdate({
+              target: [t.orgId, t.clientViewId],
+              targetWhere: sql`client_view_id IS NOT NULL`,
+              set: VIEW_ENRICHMENT_SET,
+            })
+            .returning({ id: t.id, inserted: sql<boolean>`xmax = 0` })
+        : await this.db
+            .insert(t)
+            .values(values)
+            .returning({ id: t.id, inserted: sql<boolean>`true` });
+      if (endUserId && row?.inserted) {
+        await this.forwardPageView(row.id, endUserId, values);
       }
-      await this.db
-        .insert(schema.analyticsViewEvents)
-        .values(values)
-        .onConflictDoUpdate({
-          target: [
-            schema.analyticsViewEvents.orgId,
-            schema.analyticsViewEvents.clientViewId,
-          ],
-          targetWhere: sql`client_view_id IS NOT NULL`,
-          set: VIEW_ENRICHMENT_SET,
-        });
     } catch (err) {
       this.logger.warn(`analytics.view.record_failed: ${(err as Error).message}`);
     }
@@ -285,6 +292,66 @@ export class AnalyticsService {
     } catch (err) {
       this.logger.warn(`analytics.search.record_failed: ${(err as Error).message}`);
     }
+  }
+
+  private async forwardPageView(
+    viewId: string,
+    endUserId: string,
+    view: {
+      orgId: string;
+      subjectType: string;
+      subjectId: string;
+      path: string | null;
+      locale: string | null;
+      referrer: string | null;
+      utmSource: string | null;
+      utmMedium: string | null;
+      utmCampaign: string | null;
+    },
+  ): Promise<void> {
+    if (!(await this.journeysAwaitPageViews(view.orgId))) return;
+    const [endUser] = await this.db
+      .select({ externalId: schema.endUsers.externalId })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, view.orgId), eq(schema.endUsers.id, endUserId)))
+      .limit(1);
+    if (!endUser || isProvisionalIdentity(endUser.externalId)) return;
+    const page = {
+      subjectType: view.subjectType,
+      subjectId: view.subjectId,
+      path: view.path,
+      locale: view.locale,
+      referrer: view.referrer,
+      utmSource: view.utmSource,
+      utmMedium: view.utmMedium,
+      utmCampaign: view.utmCampaign,
+    };
+    const properties = Object.fromEntries(Object.entries(page).filter(([, value]) => value !== null));
+    await this.db.insert(schema.journeyEventInbox).values({
+      orgId: view.orgId,
+      eventId: viewId,
+      type: PAGE_VIEW_EVENT_TYPE,
+      payload: { viewId, endUserId, occurredAt: new Date().toISOString(), properties },
+    });
+  }
+
+  private async journeysAwaitPageViews(orgId: string): Promise<boolean> {
+    const cached = this.pageViewListeners.get(orgId);
+    if (cached && cached.until > Date.now()) return cached.listens;
+    const rows = await this.db.execute(sql`
+      SELECT EXISTS (
+        SELECT 1
+          FROM journeys j
+          JOIN journey_versions v ON v.journey_id = j.id AND v.number = j.live_version
+         WHERE j.org_id = ${orgId}
+           AND j.status IN ('live', 'paused')
+           AND jsonb_path_exists(v.spec, '$.**.event ? (@ == $type)', jsonb_build_object('type', ${PAGE_VIEW_EVENT_TYPE}::text))
+      ) AS listens
+    `);
+    const list = Array.isArray(rows) ? rows : ((rows as { rows?: unknown[] }).rows ?? []);
+    const listens = (list[0] as { listens?: boolean } | undefined)?.listens === true;
+    this.pageViewListeners.set(orgId, { listens, until: Date.now() + PAGE_VIEW_LISTENER_TTL_MS });
+    return listens;
   }
 
   private async resolveEndUserId(

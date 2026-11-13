@@ -196,6 +196,9 @@ export class JourneyRuntimeService {
     const subject: Subject = byCompany
       ? { contactId: null, endUserId: null, companyId: await this.subjectCompany(input.subject) }
       : { ...(await this.completeSubject(input.subject)), companyId: null };
+    if (!byCompany && !subject.contactId && subject.endUserId) {
+      subject.contactId = await this.crm.ensureEndUserContact(subject.endUserId);
+    }
     if (byCompany && !subject.companyId) return { status: 'skipped', reason: 'no_company' };
     const subjectKey = subjectKeyOf(subject);
     if (!subjectKey) return { status: 'skipped', reason: 'no_subject' };
@@ -2360,13 +2363,7 @@ export class JourneyRuntimeService {
       return { ...subject, endUserId: row?.endUserId ?? null };
     }
     if (!subject.contactId && subject.endUserId) {
-      const [row] = await ctx.db
-        .select({ id: c.id })
-        .from(c)
-        .where(and(eq(c.orgId, ctx.actor!.orgId), eq(c.endUserId, subject.endUserId)))
-        .orderBy(asc(c.createdAt))
-        .limit(1);
-      return { ...subject, contactId: row?.id ?? null };
+      return { ...subject, contactId: await this.crm.linkEndUserContact(subject.endUserId) };
     }
     return subject;
   }

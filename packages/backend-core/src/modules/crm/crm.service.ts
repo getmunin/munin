@@ -26,7 +26,11 @@ import {
   type ReviewDecision,
 } from '../../common/review-decision.ts';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
-import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
+import {
+  QUOTAS_SERVICE,
+  QuotaExceededError,
+  type QuotasService,
+} from '../../common/quotas/quotas.service.ts';
 import {
   assertPriorTargetsInOrg,
   newImportResult,
@@ -43,6 +47,8 @@ import {
   type SegmentEventFilter,
 } from './segment-filter.ts';
 import { judgeOwnContact } from './own-contact.ts';
+import { contactEmailHeld, linkEndUserContact, trustedEndUserEmail } from './end-user-contact.ts';
+import { isProvisionalIdentity } from '../analytics/visitor-identity.ts';
 import {
   isSelfReportedIdentity,
   SENDER_AUTH_METADATA_KEY,
@@ -635,6 +641,37 @@ export class CrmService {
       )
       .limit(1);
     return held ? null : phone;
+  }
+
+  async linkEndUserContact(endUserId: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    return linkEndUserContact(ctx.db, ctx.actor!.orgId, endUserId);
+  }
+
+  async ensureEndUserContact(endUserId: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const linked = await linkEndUserContact(ctx.db, orgId, endUserId);
+    if (linked) return linked;
+    const [endUser] = await ctx.db
+      .select({ externalId: schema.endUsers.externalId, name: schema.endUsers.name })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.id, endUserId)))
+      .limit(1);
+    if (!endUser || isProvisionalIdentity(endUser.externalId)) return null;
+    const email = await trustedEndUserEmail(ctx.db, orgId, endUserId);
+    const usableEmail = email && !(await contactEmailHeld(ctx.db, orgId, email)) ? email : null;
+    try {
+      const created = await this.createContact({
+        endUserId,
+        ...(usableEmail ? { email: usableEmail } : {}),
+        ...(endUser.name?.trim() ? { name: endUser.name.trim() } : {}),
+      });
+      return created.id;
+    } catch (err) {
+      if (err instanceof QuotaExceededError) return null;
+      throw err;
+    }
   }
 
   async createContact(input: {

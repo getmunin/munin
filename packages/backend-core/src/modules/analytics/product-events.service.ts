@@ -5,6 +5,7 @@ import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { IdentityService } from '../identity/identity.service.ts';
 import { CONSENT_LAWFUL_BASES, CrmService, type ConsentLawfulBasis } from '../crm/crm.service.ts';
 import { normalizeIdentityEmail } from './visitor-identity.ts';
+import { linkEndUserContact } from '../crm/end-user-contact.ts';
 import { mappingsForEvent, readProductEventFields, type ProductEventFieldMapping } from './product-event-fields.ts';
 import { KNOWN_EVENT_TYPES } from '@getmunin/types';
 
@@ -315,15 +316,7 @@ export class ProductEventsService {
       endUserId = created.id;
     }
 
-    let contactId = resolved.crmContactId;
-    if (!contactId) {
-      const [byEndUser] = await ctx.db
-        .select({ id: contacts.id })
-        .from(contacts)
-        .where(and(eq(contacts.orgId, orgId), eq(contacts.endUserId, endUserId)))
-        .limit(1);
-      contactId = byEndUser?.id ?? null;
-    }
+    let contactId = resolved.crmContactId ?? (await linkEndUserContact(ctx.db, orgId, endUserId, email));
     if (!contactId && email) {
       const [byEmail] = await ctx.db
         .select({ id: contacts.id })

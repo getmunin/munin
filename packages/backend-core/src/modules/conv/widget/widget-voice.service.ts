@@ -37,6 +37,7 @@ import {
   OrgScopedKbDocReader,
   buildBrowserAssistantOverrides,
   composeVoiceSystemPrompt,
+  formatLanguageContext,
   type ChatMessageSeed,
 } from '../vapi/vapi-assistant.ts';
 import { WIDGET_VOICE_VENDORS, WidgetChannelConfig } from './widget.types.ts';
@@ -168,7 +169,9 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
 
       const prompts = await this.getPromptCache(tx, orgId);
       const hadAgentTurn = trimmedHistory.some((m) => m.role === 'assistant');
-      const systemPrompt = composeVoiceSystemPrompt(prompts, conv.id);
+      const widgetLocale = (conv.metadata as { locale?: unknown } | null)?.locale;
+      const languageContext = formatLanguageContext(widgetLocale);
+      const systemPrompt = composeVoiceSystemPrompt(prompts, conv.id, languageContext);
       const openerInstruction = prompts.get(
         hadAgentTurn ? VOICE_OPENER_CONTINUATION_SLUG : VOICE_OPENER_COLD_SLUG,
       );

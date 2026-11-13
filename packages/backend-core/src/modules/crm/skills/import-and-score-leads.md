@@ -10,7 +10,7 @@ When a customer hands you a list of leads (CSV from a webinar, scraped from an e
 ## TL;DR
 
 1. `crm_bulk_create_contacts` — built-in dedup against email + phone + do-not-contact list.
-2. For each new contact's company: `crm_list_companies` then `crm_create_company` if missing; `crm_update_contact` to link.
+2. For the list's companies: one `crm_lookup_companies` call to find the ones you already have, `crm_create_company` for the rest; `crm_update_contact` to link.
 3. For each lead worth a sales motion: `crm_create_deal` against the right `pipelineId`.
 4. `crm_log_activity` on each new contact so the touchpoint shows up in their timeline.
 5. `crm_set_ai_summary` on each contact (and deal) so prioritization signals are populated.
@@ -42,20 +42,35 @@ Hard cap: 500 contacts per call. Chunk larger lists.
 
 ## Step 2 — companies
 
-For each unique company domain in your list:
+Collect the list's unique companies, then check them all in one call. Prefer the business registration (country + registry number, such as a Norwegian orgnr) whenever the list has it — it is the company's legal identity, while a domain can be missing, shared, or changed. Up to 200 registrations and 200 domains per call:
 
 ```jsonc
-{ "name": "crm_list_companies", "arguments": { "limit": 200 } }
+{
+  "name": "crm_lookup_companies",
+  "arguments": {
+    "registrations": [{ "country": "NO", "number": "123 456 785" }],
+    "domains": ["acme.example", "globex.example"]
+  }
+}
 ```
 
-If the company doesn't exist:
+Only the inputs that matched come back, under `matches`, each with its `company`. Anything absent is new. `invalid` lists registrations whose number fails its country's format or check digit — fix or drop those rather than storing them without a registration.
+
+Create each new company with what you know:
 
 ```jsonc
 {
   "name": "crm_create_company",
-  "arguments": { "name": "Acme Inc.", "domain": "acme.com", "tags": ["customer"] }
+  "arguments": {
+    "name": "Acme Inc.",
+    "domain": "acme.example",
+    "registration": { "country": "NO", "number": "123456785" },
+    "tags": ["webinar-2026-04"]
+  }
 }
 ```
+
+A registration another company already holds fails with `crm_company_registration_conflict` and names that company — link to it instead of creating a second one. There is no such guard on `domain`, which is why the lookup comes first.
 
 Then attach each contact to its company:
 
@@ -128,6 +143,7 @@ Both `summary` and `nextAction` are free-text. `null` clears the field. Also set
 
 ## What NOT to do
 
+- **Don't create companies one lookup at a time.** `crm_lookup_companies` takes the whole list; listing every company and comparing names misses `Acme AS` vs `Acme Holding AS`.
 - **Don't bulk-create without a tag.** Tag the import (`tags: ["webinar-2026-04"]`) so it's trivial to find or revert in `crm_list_contacts({ tag: "..." })` if the source turns out to be junk.
 - **Don't skip the AI summary step.** Downstream prioritization (and humans skimming the list) read it. An empty summary is a buried lead.
 - **Don't paste raw CSV into `customFields`.** The map is freeform but lives in the contact row forever — only what the team will actually filter on belongs there.

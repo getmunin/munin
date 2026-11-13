@@ -9,7 +9,7 @@ audiences: [admin]
 
 1. `crm_lookup_contact` by email — avoid duplicates.
 2. If miss: `crm_create_contact` with email + name + as much structured detail as you have.
-3. Optionally: `crm_create_company` and link via `crm_update_contact` `companyId`.
+3. Optionally: find or create the company (`crm_lookup_companies`, then `crm_create_company`) and link via `crm_update_contact` `patch.companyId`.
 4. `crm_log_activity` for the source touchpoint (signup, demo, inbound email, etc.).
 5. `crm_set_ai_summary` with a 2–4 sentence summary of who they are and why they matter — this powers downstream prioritization.
 
@@ -33,28 +33,42 @@ Returns `null` if no match, or the contact DTO. **Do not** call `crm_create_cont
     "name": "Kari Nordmann",
     "title": "Head of Ops",
     "phone": "+1-555-0100",
-    "metadata": { "source": "signup", "utm_campaign": "spring-launch" }
+    "customFields": { "source": "signup", "utm_campaign": "spring-launch" }
   }
 }
 ```
 
-Email + name are the two fields that make the contact useful. Title and phone are nice-to-have. `metadata` is a free-form jsonb bucket — use it for source attribution, lifecycle stage, anything else that doesn't fit a column.
+Email + name are the two fields that make the contact useful. Title and phone are nice-to-have. `customFields` is a free-form map — use it for source attribution, lifecycle stage, anything else that doesn't fit a column.
 
 ## Step 3 — company linkage (when relevant)
 
-For B2B flows, attach the contact to a company so account-level reporting works:
+For B2B flows, attach the contact to a company so account-level reporting works. Check whether the company is already in the CRM — by business registration when you know it (country + registry number), otherwise by domain:
 
 ```jsonc
-{ "name": "crm_create_company", "arguments": { "name": "Acme Corp", "domain": "acme.com" } }
+{
+  "name": "crm_lookup_companies",
+  "arguments": { "registrations": [{ "country": "NO", "number": "123456785" }], "domains": ["acme.example"] }
+}
 ```
 
-Then:
+If `matches` is empty, create it:
 
 ```jsonc
-{ "name": "crm_update_contact", "arguments": { "id": "<contactId>", "companyId": "<companyId>" } }
+{
+  "name": "crm_create_company",
+  "arguments": {
+    "name": "Acme Corp",
+    "domain": "acme.example",
+    "registration": { "country": "NO", "number": "123456785" }
+  }
+}
 ```
 
-If a company with the same `domain` already exists, the create call returns it instead of erroring — safe to call repeatedly.
+Then link the contact:
+
+```jsonc
+{ "name": "crm_update_contact", "arguments": { "id": "<contactId>", "patch": { "companyId": "<companyId>" } } }
+```
 
 ## Step 4 — log the touchpoint
 
@@ -65,8 +79,9 @@ If a company with the same `domain` already exists, the create call returns it i
   "name": "crm_log_activity",
   "arguments": {
     "contactId": "<contactId>",
-    "type": "signup",
-    "summary": "Signed up via the Spring Launch landing page; selected Pro plan.",
+    "type": "note",
+    "subject": "Signed up",
+    "body": "Signed up via the Spring Launch landing page; selected Pro plan.",
     "metadata": { "plan": "pro", "trial_days": 14 }
   }
 }
@@ -80,7 +95,8 @@ This is the highest-leverage call. The summary surfaces in conversation views, o
 {
   "name": "crm_set_ai_summary",
   "arguments": {
-    "contactId": "<contactId>",
+    "entityType": "contact",
+    "id": "<contactId>",
     "summary": "Kari runs ops at Acme Corp (50-person logistics SaaS). Just signed up for Pro after attending our spring webinar. Cited integration with their ticketing system as the deciding factor."
   }
 }
@@ -91,7 +107,7 @@ Keep it factual, short, and dense with names + numbers. Avoid platitudes ("inter
 ## Idempotency notes
 
 - `crm_create_contact` with a duplicate email creates a second row. Always `crm_lookup_contact` first.
-- `crm_create_company` with a duplicate `domain` returns the existing company.
+- `crm_create_company` with a registration another company holds fails with `crm_company_registration_conflict`, naming that company. A duplicate `domain` is not checked and creates a second row — look it up first.
 - `crm_log_activity` is fire-and-forget — duplicate logs are noise but not corruption.
 - `crm_set_ai_summary` overwrites; multiple calls is fine.
 

@@ -44,7 +44,7 @@ Two flavors depending on what the customer hands you:
 
 Follow `skill://crm/import-and-score-leads`. Skip the deal-creation step (or move it later) — for support desk seeding, the goal is *contact existence*, not pipeline placement.
 
-Companies: if the customer's list has company info, create them via `crm_create_company` and link via `crm_update_contact`. Auto-linking inbound emails to companies is a future improvement; today the link is by `companyId` on the contact.
+Companies: if the customer's list has company info, check which already exist with one `crm_lookup_companies` call (by registration number or domain), create the rest via `crm_create_company`, and link via `crm_update_contact`. Auto-linking inbound emails to companies is a future improvement; today the link is by `companyId` on the contact.
 
 ### One at a time
 

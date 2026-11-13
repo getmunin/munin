@@ -25,10 +25,12 @@ import {
 } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
 import {
+  PaneFooter,
   PaneHeader,
   PaneLoadFailed,
   PaneLoadingState,
   Markdown,
+  PreviewStage,
   ScheduledFooter,
   ScheduledNotice,
   useCmdEnter,
@@ -36,8 +38,7 @@ import {
   ViewTabRow,
 } from './shared';
 import { NativeSelect } from '../../native-select';
-import { MoreActionsSheet, MoreActionsTrigger, type PaneAction } from '../pane-more-actions';
-import { QueueActionErrorBanner } from '../queue-action-error';
+import type { PaneAction } from '../pane-more-actions';
 import type { QueueActionError } from '../inbox-types';
 import { computePatch, defaultForField, seedBlock } from './cms-blocks';
 import { MetaArrow } from '../meta-arrow';
@@ -138,7 +139,6 @@ export function CmsQueuePane({
   const [schedulerOpen, setSchedulerOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [view, setView] = useState<'preview' | 'read' | 'compare'>('preview');
   const [previewState, setPreviewState] = useState<'loading' | 'ready' | 'failed'>('loading');
 
@@ -448,52 +448,38 @@ export function CmsQueuePane({
                   aspectLabel={t('cmsCoverAspect')}
                 />
               ) : showPreviewTab && activeView === 'preview' ? (
-                <div className="flex min-h-[380px] flex-1 flex-col bg-bone md:p-5 dark:bg-secondary">
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-paper md:rounded-md md:border-[1px] md:border-rule-soft md:shadow-sm dark:bg-background dark:md:border-rule-on-dark">
-                    <div className="flex shrink-0 items-center gap-3 border-b-[1px] border-rule-soft bg-paper-deep px-3.5 py-2 dark:border-rule-on-dark dark:bg-card">
-                      <span aria-hidden className="flex gap-1.5">
-                        <span className="size-2.5 rounded-full bg-ink/15 dark:bg-foreground/20" />
-                        <span className="size-2.5 rounded-full bg-ink/15 dark:bg-foreground/20" />
-                        <span className="size-2.5 rounded-full bg-ink/15 dark:bg-foreground/20" />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate rounded-[4px] border-[1px] border-rule-soft bg-paper px-2.5 py-1 font-mono text-[11px] text-ink-mute dark:border-rule-on-dark dark:bg-background">
-                        {t('cmsPreviewAddress', { path: previewPath(previewUrl) })}
+                <PreviewStage address={t('cmsPreviewAddress', { path: previewPath(previewUrl) })}>
+                  {previewState !== 'ready' ? (
+                    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-paper dark:bg-background">
+                      <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
+                        {t('cmsPreviewLoading')}
                       </span>
                     </div>
-                    <div className="relative min-h-0 flex-1">
-                      {previewState !== 'ready' ? (
-                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-paper dark:bg-background">
-                          <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
-                            {t('cmsPreviewLoading')}
-                          </span>
-                        </div>
-                      ) : null}
-                      <iframe
-                        key={embedUrl ?? 'preview'}
-                        src={embedUrl ?? undefined}
-                        title={t('cmsPreviewTitle')}
-                        sandbox="allow-scripts allow-same-origin allow-popups"
-                        referrerPolicy="no-referrer"
-                        onLoad={(e) => {
-                          if (frameStayedBlank(e.currentTarget)) {
-                            setPreviewState('failed');
-                            setView('read');
-                            return;
-                          }
-                          setPreviewState('ready');
-                        }}
-                        onError={() => {
-                          setPreviewState('failed');
-                          setView('read');
-                        }}
-                        className={cn(
-                          'absolute inset-0 size-full border-0 bg-paper dark:bg-background',
-                          previewState !== 'ready' && 'opacity-0',
-                        )}
-                      />
-                    </div>
-                  </div>
-                </div>
+                  ) : null}
+                  <iframe
+                    key={embedUrl ?? 'preview'}
+                    src={embedUrl ?? undefined}
+                    title={t('cmsPreviewTitle')}
+                    sandbox="allow-scripts allow-same-origin allow-popups"
+                    referrerPolicy="no-referrer"
+                    onLoad={(e) => {
+                      if (frameStayedBlank(e.currentTarget)) {
+                        setPreviewState('failed');
+                        setView('read');
+                        return;
+                      }
+                      setPreviewState('ready');
+                    }}
+                    onError={() => {
+                      setPreviewState('failed');
+                      setView('read');
+                    }}
+                    className={cn(
+                      'absolute inset-0 size-full border-0 bg-paper dark:bg-background',
+                      previewState !== 'ready' && 'opacity-0',
+                    )}
+                  />
+                </PreviewStage>
               ) : (
                 <div className="space-y-6 px-5 py-5 md:px-7">
                   {blockedEmbed && !editing ? (
@@ -586,133 +572,31 @@ export function CmsQueuePane({
           />
         )
       ) : editing ? (
-        <div className="flex flex-wrap items-center gap-2 border-t-[1px] border-rule-soft px-5 py-4 md:px-7 dark:border-rule-on-dark">
-          <Button
-            variant="accent"
-            onClick={() => void saveEdit()}
-            disabled={pending || !dirty}
-            className="max-md:h-11 max-md:flex-1"
-          >
-            {t('save')}
-          </Button>
-          <Button variant="ghost" onClick={cancelEdit} className="max-md:h-11 max-md:flex-1">
-            {t('cancel')}
-          </Button>
-          <span className="hidden font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
-            {t('shortcutSave')}
-          </span>
-        </div>
-      ) : loadFailed ? null : (
-        <div
-          className={
-            paneError ? undefined : 'border-t-[1px] border-rule-soft dark:border-rule-on-dark'
+        <PaneFooter
+          primary={{ label: t('save'), onClick: () => void saveEdit(), disabled: pending || !dirty }}
+          secondary={[{ label: t('cancel'), onClick: cancelEdit, variant: 'ghost' }]}
+          shortcut={t('shortcutSave')}
+          error={paneError}
+          onClearError={onClearActionError}
+        />
+      ) : loadFailed ? null : group ? (
+        <PaneFooter
+          primary={{
+            label: manyWaiting
+              ? t('cmsApproveAll', { count: waitingLocales.length })
+              : t('cmsApproveLocale', { locale: (waitingLocales[0] ?? '').toUpperCase() }),
+            onClick: group.onApproveAll,
+            disabled: pending,
+            arrow: true,
+          }}
+          secondary={
+            group.openPending
+              ? [{ label: t('edit'), onClick: () => setEditing(true), disabled: blocked }]
+              : []
           }
-        >
-          {paneError && (
-            <QueueActionErrorBanner
-              error={paneError}
-              onDismiss={onClearActionError ?? (() => {})}
-            />
-          )}
-          <Dialog
-            open={schedulerOpen}
-            onOpenChange={(o) => {
-              setSchedulerOpen(o);
-              if (!o) setScheduleError(null);
-            }}
-          >
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{t('cmsScheduleTitle')}</DialogTitle>
-                <DialogDescription>
-                  {group && manyWaiting
-                    ? t('cmsScheduleAllDescription', { count: waitingLocales.length })
-                    : t('cmsScheduleDescription')}
-                </DialogDescription>
-              </DialogHeader>
-              <form
-                className="mt-4 flex flex-col gap-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void submitSchedule();
-                }}
-              >
-                <label className="flex flex-col gap-1.5">
-                  <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
-                    {t('cmsScheduleLabel')}
-                  </span>
-                  <input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => {
-                      setScheduledAt(e.target.value);
-                      if (scheduleError) setScheduleError(null);
-                    }}
-                    className="rounded-input border-[1px] border-rule-soft bg-paper px-3 py-2 font-sans text-sm text-ink outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:border-rule-on-dark dark:bg-card dark:text-foreground"
-                    autoFocus
-                  />
-                </label>
-                {scheduleError && (
-                  <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-destructive">
-                    {scheduleError}
-                  </span>
-                )}
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setSchedulerOpen(false)}
-                  >
-                    {t('cmsScheduleCancel')}
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="accent"
-                    disabled={pending || !scheduledAt}
-                  >
-                    {t('cmsScheduleConfirm')}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-          <MoreActionsSheet
-            open={moreOpen}
-            onOpenChange={setMoreOpen}
-            actions={
-              group
-                ? groupActions
-                : [
-                    { label: t('edit'), disabled: blocked, run: () => setEditing(true) },
-                    { label: t('cmsSchedule'), disabled: blocked, run: openScheduler },
-                    { label: t('cmsDismiss'), disabled: blocked, run: onDismiss },
-                  ]
-            }
-          />
-          {group ? (
-            <div className="flex flex-wrap items-center gap-2 px-5 py-4 md:px-7">
-              <Button
-                variant="accent"
-                onClick={group.onApproveAll}
-                disabled={pending}
-                className="max-md:h-11 max-md:flex-1"
-              >
-                {manyWaiting
-                  ? t('cmsApproveAll', { count: waitingLocales.length })
-                  : t('cmsApproveLocale', { locale: (waitingLocales[0] ?? '').toUpperCase() })}{' '}
-                <span aria-hidden>→</span>
-              </Button>
-              <MoreActionsTrigger disabled={pending} onOpen={() => setMoreOpen(true)} />
-              {group.openPending ? (
-                <Button
-                  variant="outline"
-                  onClick={() => setEditing(true)}
-                  disabled={blocked}
-                  className="max-md:hidden"
-                >
-                  {t('edit')}
-                </Button>
-              ) : null}
+          sheetActions={groupActions}
+          extra={
+            <>
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -772,53 +656,93 @@ export function CmsQueuePane({
                   {t(`cmsLanguageStatus.${openStatus}`, { locale: openLocale })}
                 </span>
               )}
-              <span className="hidden font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
-                {group.openPending && manyWaiting
-                  ? t('shortcutCmsApproveAll', { locale: openLocale })
-                  : t('shortcutCmsApprove')}
-              </span>
-            </div>
-          ) : (
-          <div className="flex flex-wrap items-center gap-2 px-5 py-4 md:px-7">
-            <Button
-              variant="accent"
-              onClick={onApprove}
-              disabled={blocked}
-              className="max-md:h-11 max-md:flex-1"
+            </>
+          }
+          shortcut={
+            group.openPending && manyWaiting
+              ? t('shortcutCmsApproveAll', { locale: openLocale })
+              : t('shortcutCmsApprove')
+          }
+          error={paneError}
+          onClearError={onClearActionError}
+        />
+      ) : (
+        <PaneFooter
+          primary={{ label: t('cmsApprove'), onClick: onApprove, disabled: blocked, arrow: true }}
+          secondary={[
+            { label: t('edit'), onClick: () => setEditing(true), disabled: blocked },
+            { label: t('cmsSchedule'), onClick: openScheduler, disabled: blocked },
+            { label: t('cmsDismiss'), onClick: onDismiss, disabled: blocked, variant: 'ghost' },
+          ]}
+          shortcut={t('shortcutCmsApprove')}
+          error={paneError}
+          onClearError={onClearActionError}
+        />
+      )}
+
+      {readOnly ? null : (
+        <Dialog
+          open={schedulerOpen}
+          onOpenChange={(o) => {
+            setSchedulerOpen(o);
+            if (!o) setScheduleError(null);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('cmsScheduleTitle')}</DialogTitle>
+              <DialogDescription>
+                {group && manyWaiting
+                  ? t('cmsScheduleAllDescription', { count: waitingLocales.length })
+                  : t('cmsScheduleDescription')}
+              </DialogDescription>
+            </DialogHeader>
+            <form
+              className="mt-4 flex flex-col gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submitSchedule();
+              }}
             >
-              {t('cmsApprove')} <span aria-hidden>→</span>
-            </Button>
-            <MoreActionsTrigger disabled={blocked} onOpen={() => setMoreOpen(true)} />
-            <Button
-              variant="outline"
-              onClick={() => setEditing(true)}
-              disabled={blocked}
-              className="max-md:hidden"
-            >
-              {t('edit')}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={openScheduler}
-              disabled={blocked}
-              className="max-md:hidden"
-            >
-              {t('cmsSchedule')}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={onDismiss}
-              disabled={blocked}
-              className="max-md:hidden"
-            >
-              {t('cmsDismiss')}
-            </Button>
-            <span className="hidden font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
-              {t('shortcutCmsApprove')}
-            </span>
-          </div>
-          )}
-        </div>
+              <label className="flex flex-col gap-1.5">
+                <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
+                  {t('cmsScheduleLabel')}
+                </span>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => {
+                    setScheduledAt(e.target.value);
+                    if (scheduleError) setScheduleError(null);
+                  }}
+                  className="rounded-input border-[1px] border-rule-soft bg-paper px-3 py-2 font-sans text-sm text-ink outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:border-rule-on-dark dark:bg-card dark:text-foreground"
+                  autoFocus
+                />
+              </label>
+              {scheduleError && (
+                <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-destructive">
+                  {scheduleError}
+                </span>
+              )}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSchedulerOpen(false)}
+                >
+                  {t('cmsScheduleCancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="accent"
+                  disabled={pending || !scheduledAt}
+                >
+                  {t('cmsScheduleConfirm')}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );
@@ -1041,13 +965,13 @@ function FieldEditor({
   replaceLabel: string;
 }) {
   const inputClass = cn(
-    'w-full rounded-input border-[1px] bg-paper px-4 py-2 font-sans text-[15px] leading-7 outline-none focus-visible:ring-1 dark:bg-card dark:text-foreground',
+    'w-full rounded-input border-[1px] bg-paper px-4 py-2 font-sans text-sm leading-relaxed outline-none focus-visible:ring-1 dark:bg-card dark:text-foreground',
     invalid
       ? 'border-destructive focus-visible:ring-destructive'
       : 'border-cobalt focus-visible:ring-cobalt',
   );
   const textareaClass = cn(
-    'w-full resize-y rounded-input border-[1px] bg-paper px-4 py-3 font-sans text-[15px] leading-7 outline-none focus-visible:ring-1 dark:bg-card dark:text-foreground',
+    'w-full resize-y rounded-input border-[1px] bg-paper px-4 py-3 font-sans text-sm leading-relaxed outline-none focus-visible:ring-1 dark:bg-card dark:text-foreground',
     invalid
       ? 'border-destructive focus-visible:ring-destructive'
       : 'border-cobalt focus-visible:ring-cobalt',
@@ -1115,7 +1039,7 @@ function FieldEditor({
           disabled={disabled}
           aria-invalid={invalid || undefined}
           className={cn(
-            'h-auto pl-4 py-2 text-[15px] leading-7',
+            'h-auto pl-4 py-2 text-sm leading-relaxed',
             invalid
               ? 'border-destructive focus-visible:border-destructive'
               : 'border-cobalt focus-visible:border-cobalt',
@@ -1304,7 +1228,7 @@ export function FieldViewer({
 
 function ValueBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="border-[1px] border-ink bg-paper px-4 py-3 font-sans text-[15px] leading-7 text-ink dark:bg-card dark:border-rule-on-dark dark:text-foreground">
+    <div className="border-[1px] border-ink bg-paper px-4 py-3 font-sans text-sm leading-relaxed text-ink dark:bg-card dark:border-rule-on-dark dark:text-foreground">
       {children}
     </div>
   );

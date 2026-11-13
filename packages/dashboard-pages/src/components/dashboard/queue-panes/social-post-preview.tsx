@@ -14,16 +14,13 @@ import {
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { initialsOf } from '../../../lib/initials';
-import { useSocialLinkPreview } from '../../../lib/use-social-link-preview';
 import { socialMediaKind } from './social-actions';
 import {
   composePreviewBody,
   composePreviewComment,
   foldPreviewBody,
-  linkHost,
-  previewLink,
-  previewPicture,
   splitUrls,
+  type PreviewCard,
   type PreviewPicture,
 } from './social-preview';
 import type { SocialDraftDto } from './types';
@@ -32,28 +29,24 @@ export function SocialPostPreview({
   draft,
   authorName,
   authorKind,
+  picture,
+  card,
 }: {
   draft: SocialDraftDto;
   authorName: string | null;
   authorKind: 'member' | 'org_page' | null;
+  picture: PreviewPicture;
+  card: PreviewCard | null;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => setExpanded(false), [draft.id]);
 
-  const linkPreview = useSocialLinkPreview(draft.id, !draft.mediaUrl && draft.linkUrl !== null);
-  const picture = previewPicture(draft, linkPreview);
   const facebook = draft.platform === 'facebook';
   const body = composePreviewBody(draft, picture.kind !== 'none');
   const fold = foldPreviewBody(draft.platform, body);
   const comment = composePreviewComment(draft);
-  const link = previewLink(draft);
-  const host = link ? linkHost(link) : null;
-  const card =
-    facebook && picture.kind === 'none' && draft.linkPlacement !== 'comment' && host !== null
-      ? { host, title: linkPreview?.title ?? null }
-      : null;
   const name = authorName?.trim() || t('socialPreviewAuthorUnknown');
   const post = {
     draft,
@@ -67,29 +60,11 @@ export function SocialPostPreview({
     picture,
     card,
   };
-  const note =
-    picture.kind === 'attached'
-      ? link && draft.linkPlacement !== 'comment'
-        ? t('socialPreviewNoteMedia')
-        : null
-      : picture.kind === 'page'
-        ? t('socialPreviewNotePageImage')
-        : picture.kind === 'none' && draft.linkUrl
-          ? !picture.readable
-            ? t('socialPreviewNoteUnreadable')
-            : card
-              ? t('socialPreviewNoteFacebookCard')
-              : t('socialPreviewNoteNoPageImage')
-          : null;
 
   return (
-    <section className="space-y-2">
-      <div className="munin-light-locked px-0 py-0">
-        {facebook ? <FacebookPost {...post} /> : <LinkedInPost {...post} />}
-      </div>
-
-      {note ? <p className="text-xs text-ink-mute">{note}</p> : null}
-    </section>
+    <div className="munin-light-locked flex flex-1 flex-col px-0 py-0">
+      {facebook ? <FacebookPost {...post} /> : <LinkedInPost {...post} />}
+    </div>
   );
 }
 
@@ -103,7 +78,7 @@ interface PostProps {
   expanded: boolean;
   onExpand: () => void;
   picture: PreviewPicture;
-  card: { host: string; title: string | null } | null;
+  card: PreviewCard | null;
 }
 
 function LinkedInPost({
@@ -119,7 +94,7 @@ function LinkedInPost({
 }: PostProps) {
   const t = useTranslations('dashboard.overview.drawer');
   return (
-    <div className="bg-[#F4F2EE] px-3 py-5 md:px-6">
+    <div className="flex-1 bg-[#F4F2EE] px-3 py-5 md:px-6">
       <article className="mx-auto w-full max-w-[555px] overflow-hidden rounded-[8px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_2px_3px_rgba(0,0,0,0.06)]">
         <div className="flex items-start gap-2 px-4 pt-3">
           <Avatar
@@ -215,7 +190,7 @@ function FacebookPost({
 }: PostProps) {
   const t = useTranslations('dashboard.overview.drawer');
   return (
-    <div className="bg-[#F0F2F5] px-3 py-5 md:px-6">
+    <div className="flex-1 bg-[#F0F2F5] px-3 py-5 md:px-6">
       <article className="mx-auto w-full max-w-[500px] overflow-hidden rounded-[8px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
         <div className="flex items-start gap-2 px-4 pt-3">
           <Avatar name={name} size={40} round className="bg-[#0F1419] text-white" />

@@ -173,6 +173,7 @@ export function QueueItemPane({
           onClose={onClose}
           actionError={actionError}
           onClearActionError={onClearActionError}
+          hideHeaderOnMobile={hideHeaderOnMobile}
         />
       );
     case 'feedback':

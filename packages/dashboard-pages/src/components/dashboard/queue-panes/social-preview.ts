@@ -103,3 +103,37 @@ export function countBodyChars(platform: string, body: string): number {
   const inline = body.match(URL_PATTERN) ?? [];
   return body.length - inline.reduce((total, link) => total + link.length, 0);
 }
+
+export interface PreviewCard {
+  host: string;
+  title: string | null;
+}
+
+export function previewCard(
+  draft: SocialPreviewDraft,
+  picture: PreviewPicture,
+  linkPreview: SocialLinkPreview | null | undefined,
+): PreviewCard | null {
+  if (draft.platform !== 'facebook' || picture.kind !== 'none') return null;
+  if (draft.linkPlacement === 'comment') return null;
+  const link = previewLink(draft);
+  const host = link ? linkHost(link) : null;
+  if (host === null) return null;
+  return { host, title: linkPreview?.title ?? null };
+}
+
+export type PreviewNote = 'media' | 'pageImage' | 'unreadable' | 'facebookCard' | 'noPageImage';
+
+export function previewNote(
+  draft: SocialPreviewDraft,
+  picture: PreviewPicture,
+  card: PreviewCard | null,
+): PreviewNote | null {
+  if (picture.kind === 'attached') {
+    return previewLink(draft) && draft.linkPlacement !== 'comment' ? 'media' : null;
+  }
+  if (picture.kind === 'page') return 'pageImage';
+  if (picture.kind !== 'none' || !draft.linkUrl) return null;
+  if (!picture.readable) return 'unreadable';
+  return card ? 'facebookCard' : 'noPageImage';
+}

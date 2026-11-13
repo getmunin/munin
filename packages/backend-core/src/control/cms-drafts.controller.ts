@@ -21,6 +21,7 @@ import {
   CmsConflictError,
   CmsInvalidError,
   CmsService,
+  CmsTranslationsChangedError,
   type AssetDto,
   type AssetUploadHandle,
   type EntryDto,
@@ -78,6 +79,26 @@ class ScheduleDraftBody extends createZodDto(
     scheduledAt: z.string().min(1),
   }),
 ) {}
+
+const ExpectedTranslations = z
+  .array(z.object({ id: z.string().min(1), version: z.number().int().positive() }))
+  .min(1)
+  .max(50);
+
+class ApproveGroupBody extends createZodDto(z.object({ expected: ExpectedTranslations })) {}
+
+class ScheduleGroupBody extends createZodDto(
+  z.object({ expected: ExpectedTranslations, scheduledAt: z.string().min(1) }),
+) {}
+
+class DismissGroupBody extends createZodDto(
+  z.object({ expected: ExpectedTranslations, reason: z.string().min(1).max(500).optional() }),
+) {}
+
+export interface CmsDraftGroupResult {
+  groupId: string;
+  entries: Array<{ id: string; locale: string; status: EntryDto['status']; version: number }>;
+}
 
 class UploadAssetBody extends createZodDto(
   z.object({
@@ -225,6 +246,53 @@ export class CmsDraftsController {
     return { dismissed: true };
   }
 
+  @Post('groups/:groupId/approve')
+  @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
+  async approveGroup(
+    @Param('groupId') groupId: string,
+    @Body() input: ApproveGroupBody,
+  ): Promise<CmsDraftGroupResult> {
+    const entries = await translate(() =>
+      this.cms.publishTranslationGroup({ groupId, expected: input.expected }),
+    );
+    return groupResult(groupId, entries);
+  }
+
+  @Post('groups/:groupId/schedule')
+  @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
+  async scheduleGroup(
+    @Param('groupId') groupId: string,
+    @Body() input: ScheduleGroupBody,
+  ): Promise<CmsDraftGroupResult> {
+    const entries = await translate(() =>
+      this.cms.scheduleTranslationGroup({
+        groupId,
+        expected: input.expected,
+        scheduledAt: input.scheduledAt,
+      }),
+    );
+    return groupResult(groupId, entries);
+  }
+
+  @Post('groups/:groupId/dismiss')
+  @HttpCode(200)
+  @AdmitAdminKeyScope('cms:write')
+  async dismissGroup(
+    @Param('groupId') groupId: string,
+    @Body() input: DismissGroupBody,
+  ): Promise<CmsDraftGroupResult> {
+    const entries = await translate(() =>
+      this.cms.archiveTranslationGroup({
+        groupId,
+        expected: input.expected,
+        ...(input.reason ? { reason: input.reason } : {}),
+      }),
+    );
+    return groupResult(groupId, entries);
+  }
+
   private async attachFields(entry: EntryDto): Promise<CmsDraftDetailDto> {
     const collection = await this.cms.getCollection(entry.collectionId);
     return { ...entry, fields: collection.fields };
@@ -233,6 +301,18 @@ export class CmsDraftsController {
 
 export interface CmsPreviewLinkResponse extends PreviewLinkDto {
   embed: PreviewEmbedDto | null;
+}
+
+function groupResult(groupId: string, entries: EntryDto[]): CmsDraftGroupResult {
+  return {
+    groupId,
+    entries: entries.map((entry) => ({
+      id: entry.id,
+      locale: entry.locale,
+      status: entry.status,
+      version: entry.version,
+    })),
+  };
 }
 
 async function translate<T>(fn: () => Promise<T>): Promise<T> {
@@ -248,6 +328,9 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
     }
     if (err instanceof CmsConflictError) {
       throw new ConflictException({ message: err.message, code: err.code });
+    }
+    if (err instanceof CmsTranslationsChangedError) {
+      throw new ConflictException({ message: err.message, code: err.code, params: err.params });
     }
     throw err;
   }

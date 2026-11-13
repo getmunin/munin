@@ -169,6 +169,12 @@ export type QueueActionError =
     }
   | null;
 
+export interface CmsGroupAction {
+  groupId: string;
+  anchorId: string;
+  members: Array<{ id: string; version: number }>;
+}
+
 export interface InboxController {
   items: LiveSummary[];
   itemsTotal: number;
@@ -207,4 +213,8 @@ export interface InboxController {
   uploadCmsAsset: (item: QueueItem, file: File) => Promise<CmsAssetExpanded>;
   dismissQueue: (item: QueueItem) => Promise<boolean>;
   scheduleQueue: (item: QueueItem, scheduledAt: string) => Promise<void>;
+  focusCmsEntries: (openId: string | null, referenceId: string | null) => void;
+  approveCmsGroup: (group: CmsGroupAction) => Promise<boolean>;
+  dismissCmsGroup: (group: CmsGroupAction) => Promise<boolean>;
+  scheduleCmsGroup: (group: CmsGroupAction, scheduledAt: string) => Promise<void>;
 }

@@ -14,6 +14,7 @@ import {
   CmsService,
   CmsConflictError,
   CmsInvalidError,
+  CmsTranslationsChangedError,
 } from './cms.service.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
@@ -1081,6 +1082,183 @@ function holderFor(): EmbeddingProviderHolder {
         locale: 'en',
       });
       expect(byId.get('d2')).toMatchObject({ title: 'Draft two', wordCount: null });
+    });
+
+    async function seedTranslations(slug: string, locales: string[] = ['en', 'nb', 'sv']) {
+      const [first, ...rest] = locales;
+      const base = await run(() =>
+        svc.createEntry({
+          collection: 'changelog',
+          slug: `${slug}-${first}`,
+          locale: first,
+          data: { title: `${slug} ${first}` },
+        }),
+      );
+      const entries = [base];
+      for (const locale of rest) {
+        entries.push(
+          await run(() =>
+            svc.createEntry({
+              collection: 'changelog',
+              slug: `${slug}-${locale}`,
+              locale,
+              translationOf: base.id,
+              data: { title: `${slug} ${locale}` },
+            }),
+          ),
+        );
+      }
+      return entries;
+    }
+
+    async function seedLocalizedCollection() {
+      await ensureLocale('en');
+      await ensureLocale('nb');
+      await ensureLocale('sv');
+      await run(() =>
+        svc.createCollection({
+          name: 'Changelog',
+          slug: 'changelog',
+          fields: [{ name: 'title', type: 'text', required: true }],
+          localized: true,
+        }),
+      );
+    }
+
+    it('listDraftEntries carries every sibling of a translation group, published ones included', async () => {
+      await seedLocalizedCollection();
+      const [en, nb, sv] = await seedTranslations('roles');
+      await run(() => svc.publishEntry({ id: en!.id, ifVersion: en!.version }));
+
+      const drafts = await run(() => svc.listDraftEntries());
+      expect(drafts.map((d) => d.locale).sort()).toEqual(['nb', 'sv']);
+      for (const draft of drafts) {
+        expect(draft.translationGroupId).toBe(en!.translationGroupId);
+        expect(draft.translations).toEqual([
+          { id: en!.id, locale: 'en', status: 'published', version: 2, title: 'roles en', isDefaultLocale: true },
+          { id: nb!.id, locale: 'nb', status: 'draft', version: 1, title: 'roles nb', isDefaultLocale: false },
+          { id: sv!.id, locale: 'sv', status: 'draft', version: 1, title: 'roles sv', isDefaultLocale: false },
+        ]);
+      }
+    });
+
+    it('listDraftEntries applies its limit to translation groups, never cutting one', async () => {
+      await seedLocalizedCollection();
+      await seedTranslations('older');
+      await seedTranslations('newer');
+
+      const drafts = await run(() => svc.listDraftEntries(1));
+      expect(drafts.map((d) => d.slug).sort()).toEqual(['newer-en', 'newer-nb', 'newer-sv']);
+    });
+
+    it('publishTranslationGroup publishes every waiting locale at one publish time', async () => {
+      await seedLocalizedCollection();
+      const entries = await seedTranslations('welcome');
+
+      const published = await run(() =>
+        svc.publishTranslationGroup({
+          groupId: entries[0]!.translationGroupId,
+          expected: entries.map((e) => ({ id: e.id, version: e.version })),
+        }),
+      );
+      expect(published.map((e) => e.status)).toEqual(['published', 'published', 'published']);
+      expect(new Set(published.map((e) => e.publishedAt)).size).toBe(1);
+      expect(await run(() => svc.listDraftEntries())).toEqual([]);
+    });
+
+    it('publishTranslationGroup names the locale that changed and publishes nothing', async () => {
+      await seedLocalizedCollection();
+      const [en, nb, sv] = await seedTranslations('stale');
+      await run(() =>
+        svc.updateEntry({ id: sv!.id, ifVersion: sv!.version, data: { title: 'stale sv, revised' } }),
+      );
+
+      const attempt = run(() =>
+        svc.publishTranslationGroup({
+          groupId: en!.translationGroupId,
+          expected: [en!, nb!, sv!].map((e) => ({ id: e.id, version: e.version })),
+        }),
+      );
+      await expect(attempt).rejects.toThrow(CmsTranslationsChangedError);
+      await expect(attempt).rejects.toMatchObject({ locales: ['sv'], params: { locales: 'SV' } });
+      expect((await run(() => svc.listDraftEntries())).length).toBe(3);
+    });
+
+    it('publishTranslationGroup refuses when a waiting locale was never listed to the reviewer', async () => {
+      await seedLocalizedCollection();
+      const [en, nb] = await seedTranslations('unseen');
+
+      await expect(
+        run(() =>
+          svc.publishTranslationGroup({
+            groupId: en!.translationGroupId,
+            expected: [en!, nb!].map((e) => ({ id: e.id, version: e.version })),
+          }),
+        ),
+      ).rejects.toMatchObject({ code: 'cms_translations_changed', locales: ['sv'] });
+    });
+
+    it('publishTranslationGroup leaves already published siblings alone', async () => {
+      await seedLocalizedCollection();
+      const [en, nb, sv] = await seedTranslations('partial');
+      const live = await run(() => svc.publishEntry({ id: en!.id, ifVersion: en!.version }));
+
+      const published = await run(() =>
+        svc.publishTranslationGroup({
+          groupId: en!.translationGroupId,
+          expected: [nb!, sv!].map((e) => ({ id: e.id, version: e.version })),
+        }),
+      );
+      expect(published.map((e) => e.locale)).toEqual(['nb', 'sv']);
+      expect((await run(() => svc.getEntry(en!.id))).version).toBe(live.version);
+    });
+
+    it('publishTranslationGroup rejects an entry from another group and an unknown group', async () => {
+      await seedLocalizedCollection();
+      const [en] = await seedTranslations('mine', ['en']);
+      const [other] = await seedTranslations('theirs', ['en']);
+
+      await expect(
+        run(() =>
+          svc.publishTranslationGroup({
+            groupId: en!.translationGroupId,
+            expected: [{ id: other!.id, version: other!.version }],
+          }),
+        ),
+      ).rejects.toThrow(CmsInvalidError);
+      await expect(
+        run(() =>
+          svc.publishTranslationGroup({
+            groupId: 'cmg_missing',
+            expected: [{ id: en!.id, version: en!.version }],
+          }),
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('scheduleTranslationGroup and archiveTranslationGroup move every waiting locale together', async () => {
+      await seedLocalizedCollection();
+      const scheduledEntries = await seedTranslations('later');
+      const scheduledAt = new Date(Date.now() + 3_600_000).toISOString();
+      const scheduled = await run(() =>
+        svc.scheduleTranslationGroup({
+          groupId: scheduledEntries[0]!.translationGroupId,
+          expected: scheduledEntries.map((e) => ({ id: e.id, version: e.version })),
+          scheduledAt,
+        }),
+      );
+      expect(scheduled.map((e) => e.scheduledAt)).toEqual([scheduledAt, scheduledAt, scheduledAt]);
+
+      const dismissedEntries = await seedTranslations('never');
+      const archived = await run(() =>
+        svc.archiveTranslationGroup({
+          groupId: dismissedEntries[0]!.translationGroupId,
+          expected: dismissedEntries.map((e) => ({ id: e.id, version: e.version })),
+          reason: 'superseded',
+        }),
+      );
+      expect(archived.map((e) => e.status)).toEqual(['archived', 'archived', 'archived']);
+      expect(await run(() => svc.listDraftEntries())).toEqual([]);
     });
 
     it('listScheduledEntries returns only scheduled entries, soonest first', async () => {

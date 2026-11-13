@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useFormatter, useTranslations } from 'next-intl';
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../api';
 import {
   Button,
@@ -15,7 +15,11 @@ import {
   DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
   Pill,
 } from '@getmunin/ui';
@@ -32,7 +36,7 @@ import {
   ViewTabRow,
 } from './shared';
 import { NativeSelect } from '../../native-select';
-import { MoreActionsSheet, MoreActionsTrigger } from '../pane-more-actions';
+import { MoreActionsSheet, MoreActionsTrigger, type PaneAction } from '../pane-more-actions';
 import { QueueActionErrorBanner } from '../queue-action-error';
 import type { QueueActionError } from '../inbox-types';
 import { computePatch, defaultForField, seedBlock } from './cms-blocks';
@@ -48,12 +52,30 @@ import {
   type CmsBlockTypeDef,
   type CmsDraftDetailDto,
   type CmsDraftSummaryDto,
+  type CmsEntryStatus,
   type CmsPreviewLink,
   type CmsFieldDef,
   type CmsRefExpanded,
 } from './types';
 
 type EditableData = Record<string, unknown>;
+
+export interface CmsPaneGroup {
+  translations: Array<{ id: string; locale: string; status: CmsEntryStatus }>;
+  yoursId: string | null;
+  openPending: boolean;
+  waitingLocales: string[];
+  reference: {
+    locale: string;
+    yours: boolean;
+    detail: CmsDraftDetailDto | undefined;
+    loadError: string | undefined;
+  } | null;
+  onOpen: (id: string) => void;
+  onApproveAll: () => void;
+  onDismissAll: () => void;
+  onScheduleAll: (scheduledAt: string) => Promise<void>;
+}
 
 export function CmsQueuePane({
   item,
@@ -75,6 +97,7 @@ export function CmsQueuePane({
   onClose,
   actionError,
   onClearActionError,
+  group,
 }: {
   item: { id: string; title: string; createdAt: string; raw: CmsDraftSummaryDto };
   detail: CmsDraftDetailDto | undefined;
@@ -95,6 +118,7 @@ export function CmsQueuePane({
   onClose?: () => void;
   actionError?: QueueActionError;
   onClearActionError?: () => void;
+  group?: CmsPaneGroup;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const paneError = actionError?.itemId === item.id ? actionError : null;
@@ -115,7 +139,7 @@ export function CmsQueuePane({
   const [scheduledAt, setScheduledAt] = useState('');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [view, setView] = useState<'preview' | 'read'>('preview');
+  const [view, setView] = useState<'preview' | 'read' | 'compare'>('preview');
   const [previewState, setPreviewState] = useState<'loading' | 'ready' | 'failed'>('loading');
 
   const previewUrl = previewLink?.url ?? null;
@@ -124,9 +148,16 @@ export function CmsQueuePane({
   const embedUrl = previewUrl && !blockedEmbed ? withEmbedParam(previewUrl) : null;
   const hasPreviewUrl = !!previewUrl && !editing;
   const showPreviewTab = hasPreviewUrl && !blockedEmbed;
+  const reference = group?.reference ?? null;
+  const canCompare = reference !== null && !editing;
+  const activeView = view === 'compare' && !canCompare ? 'preview' : view;
+  const waitingLocales = group?.waitingLocales ?? [];
+  const manyWaiting = waitingLocales.length > 1;
+  const openLocale = (detail?.locale ?? item.raw.locale).toUpperCase();
+  const openStatus = group?.translations.find((tr) => tr.id === item.id)?.status ?? 'draft';
 
   useEffect(() => {
-    setView('preview');
+    setView((current) => (current === 'compare' ? current : 'preview'));
     setPreviewState('loading');
   }, [item.id, previewUrl]);
 
@@ -213,7 +244,7 @@ export function CmsQueuePane({
     }
     setScheduleError(null);
     try {
-      await onSchedule(at.toISOString());
+      await (group ? group.onScheduleAll(at.toISOString()) : onSchedule(at.toISOString()));
       setSchedulerOpen(false);
       setScheduledAt('');
     } catch (err) {
@@ -221,14 +252,105 @@ export function CmsQueuePane({
     }
   };
 
-  useCmdEnter(() => {
+  useCmdEnter((event) => {
     if (readOnly) return;
     if (editing) {
       if (!pending) void saveEdit();
       return;
     }
+    if (group) {
+      if (pending) return;
+      if (event.shiftKey && group.openPending && manyWaiting) {
+        if (!blocked) onApprove();
+        return;
+      }
+      group.onApproveAll();
+      return;
+    }
     if (!blocked) onApprove();
   });
+
+  const languageStrip = group ? (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="mr-1.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
+        {t('cmsLanguages')}
+      </span>
+      {group.translations.map((tr) => {
+        const open = tr.id === item.id;
+        return (
+          <button
+            key={tr.id}
+            type="button"
+            onClick={() => group.onOpen(tr.id)}
+            aria-pressed={open}
+            title={t(`cmsLanguageStatus.${tr.status}`, { locale: tr.locale.toUpperCase() })}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-[2px] border-[1px] px-2.5 py-1 font-mono text-[11px] font-medium uppercase tracking-meta transition-colors duration-fast',
+              open
+                ? 'border-ink bg-ink text-paper dark:border-foreground dark:bg-foreground dark:text-background'
+                : 'border-rule-soft text-ink hover:border-ink dark:border-rule-on-dark dark:text-foreground dark:hover:border-foreground',
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'size-[7px] rounded-full border-[1px]',
+                tr.status === 'published'
+                  ? 'border-verdigris bg-verdigris dark:border-verdigris-soft dark:bg-verdigris-soft'
+                  : tr.status === 'scheduled'
+                    ? 'border-cobalt bg-cobalt dark:border-cobalt-soft dark:bg-cobalt-soft'
+                    : tr.status === 'archived'
+                      ? 'border-current bg-current opacity-40'
+                      : 'border-current',
+              )}
+            />
+            {tr.locale}
+            {tr.id === group.yoursId ? (
+              <span className="text-[10px] normal-case tracking-normal opacity-70">
+                {t('cmsLanguageYours')}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
+
+  const groupActions: PaneAction[] = group
+    ? [
+        ...(group.openPending
+          ? [{ label: t('edit'), disabled: blocked, run: () => setEditing(true) }]
+          : []),
+        ...(group.openPending && manyWaiting
+          ? [
+              {
+                label: t('cmsApproveOnly', { locale: openLocale }),
+                disabled: blocked,
+                run: onApprove,
+              },
+              {
+                label: t('cmsDismissLocale', { locale: openLocale }),
+                disabled: blocked,
+                run: onDismiss,
+              },
+            ]
+          : []),
+        {
+          label: manyWaiting
+            ? t('cmsScheduleAll', { count: waitingLocales.length })
+            : t('cmsScheduleLocale', { locale: (waitingLocales[0] ?? '').toUpperCase() }),
+          disabled: pending,
+          run: openScheduler,
+        },
+        {
+          label: manyWaiting
+            ? t('cmsDismissAll', { count: waitingLocales.length })
+            : t('cmsDismissLocale', { locale: (waitingLocales[0] ?? '').toUpperCase() }),
+          disabled: pending,
+          run: group.onDismissAll,
+        },
+      ]
+    : [];
 
   useEffect(() => {
     if (!editing) return;
@@ -250,76 +372,127 @@ export function CmsQueuePane({
             kind="cms"
             pillLabel={tQueue('kindCms')}
             title={item.title}
-            meta={t('metaCms', {
-              collection: item.raw.collectionName,
-              age: age(item.createdAt),
-            })}
+            meta={
+              group
+                ? t('metaCmsGroup', {
+                    collection: item.raw.collectionName,
+                    age: age(item.createdAt),
+                    count: group.translations.length,
+                  })
+                : t('metaCms', {
+                    collection: item.raw.collectionName,
+                    age: age(item.createdAt),
+                  })
+            }
             rightExtra={readOnly ? <Pill tone="review">{t('scheduledPill')}</Pill> : undefined}
+            below={languageStrip}
             onClose={onClose}
             closeLabel={t('close')}
             className={hideHeaderOnMobile ? 'max-md:hidden' : undefined}
           />
+          {languageStrip && hideHeaderOnMobile ? (
+            <div className="border-b-[1px] border-rule-soft px-5 py-3 md:hidden dark:border-rule-on-dark">
+              {languageStrip}
+            </div>
+          ) : null}
 
           {detail ? (
             <>
-              {hasPreviewUrl ? (
+              {hasPreviewUrl || canCompare ? (
                 <ViewTabRow>
                   {showPreviewTab ? (
                     <ViewTab
-                      active={view === 'preview'}
+                      active={activeView === 'preview'}
                       warn={previewState === 'failed'}
                       onSelect={() => setView('preview')}
                     >
                       {t('cmsViewPreview')}
                     </ViewTab>
                   ) : null}
-                  <ViewTab active={view === 'read'} onSelect={() => setView('read')}>
+                  <ViewTab
+                    active={activeView === 'read' || (activeView === 'preview' && !showPreviewTab)}
+                    onSelect={() => setView('read')}
+                  >
                     {t('cmsViewRead')}
                   </ViewTab>
-                  <a
-                    href={previewUrl ?? undefined}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="ml-auto inline-flex items-center gap-1 py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
-                  >
-                    {t('cmsOpenPreview')}
-              <MetaArrow glyph="↗" />
-                  </a>
+                  {canCompare && reference ? (
+                    <ViewTab active={activeView === 'compare'} onSelect={() => setView('compare')}>
+                      {t('cmsViewCompare', { locale: reference.locale.toUpperCase() })}
+                    </ViewTab>
+                  ) : null}
+                  {previewUrl ? (
+                    <a
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="ml-auto inline-flex items-center gap-1 py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
+                    >
+                      {t('cmsOpenPreview')}
+                      <MetaArrow glyph="↗" />
+                    </a>
+                  ) : null}
                 </ViewTabRow>
               ) : null}
 
-              {showPreviewTab && view === 'preview' ? (
-                <div className="relative flex-1 min-h-[380px] overflow-hidden bg-bone dark:bg-secondary">
-                  {previewState !== 'ready' ? (
-                    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-bone dark:bg-secondary">
-                      <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
-                        {t('cmsPreviewLoading')}
+              {activeView === 'compare' && reference ? (
+                <CompareView
+                  fields={fields}
+                  reference={reference}
+                  openLocale={detail.locale}
+                  openSlug={detail.slug}
+                  openData={initialData}
+                  openRefs={detail.refs}
+                  yoursLabel={t('cmsLanguageYours')}
+                  slugLabel={t('cmsCompareSlug')}
+                  loadingLabel={t('loading')}
+                  aspectLabel={t('cmsCoverAspect')}
+                />
+              ) : showPreviewTab && activeView === 'preview' ? (
+                <div className="flex min-h-[380px] flex-1 flex-col bg-bone md:p-5 dark:bg-secondary">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-paper md:rounded-md md:border-[1px] md:border-rule-soft md:shadow-sm dark:bg-background dark:md:border-rule-on-dark">
+                    <div className="flex shrink-0 items-center gap-3 border-b-[1px] border-rule-soft bg-paper-deep px-3.5 py-2 dark:border-rule-on-dark dark:bg-card">
+                      <span aria-hidden className="flex gap-1.5">
+                        <span className="size-2.5 rounded-full bg-ink/15 dark:bg-foreground/20" />
+                        <span className="size-2.5 rounded-full bg-ink/15 dark:bg-foreground/20" />
+                        <span className="size-2.5 rounded-full bg-ink/15 dark:bg-foreground/20" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate rounded-[4px] border-[1px] border-rule-soft bg-paper px-2.5 py-1 font-mono text-[11px] text-ink-mute dark:border-rule-on-dark dark:bg-background">
+                        {t('cmsPreviewAddress', { path: previewPath(previewUrl) })}
                       </span>
                     </div>
-                  ) : null}
-                  <iframe
-                    key={embedUrl ?? 'preview'}
-                    src={embedUrl ?? undefined}
-                    title={t('cmsPreviewTitle')}
-                    sandbox="allow-scripts allow-same-origin allow-popups"
-                    referrerPolicy="no-referrer"
-                    onLoad={(e) => {
-                      if (frameStayedBlank(e.currentTarget)) {
-                        setPreviewState('failed');
-                        setView('read');
-                        return;
-                      }
-                      setPreviewState('ready');
-                    }}
-                    onError={() => {
-                      setPreviewState('failed');
-                      setView('read');
-                    }}
-                    className={cn(
-                      'size-full border-0 bg-paper dark:bg-background',
-                      previewState !== 'ready' && 'opacity-0',
-                    )}
-                  />
+                    <div className="relative min-h-0 flex-1">
+                      {previewState !== 'ready' ? (
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-paper dark:bg-background">
+                          <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
+                            {t('cmsPreviewLoading')}
+                          </span>
+                        </div>
+                      ) : null}
+                      <iframe
+                        key={embedUrl ?? 'preview'}
+                        src={embedUrl ?? undefined}
+                        title={t('cmsPreviewTitle')}
+                        sandbox="allow-scripts allow-same-origin allow-popups"
+                        referrerPolicy="no-referrer"
+                        onLoad={(e) => {
+                          if (frameStayedBlank(e.currentTarget)) {
+                            setPreviewState('failed');
+                            setView('read');
+                            return;
+                          }
+                          setPreviewState('ready');
+                        }}
+                        onError={() => {
+                          setPreviewState('failed');
+                          setView('read');
+                        }}
+                        className={cn(
+                          'absolute inset-0 size-full border-0 bg-paper dark:bg-background',
+                          previewState !== 'ready' && 'opacity-0',
+                        )}
+                      />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-6 px-5 py-5 md:px-7">
@@ -451,7 +624,11 @@ export function CmsQueuePane({
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{t('cmsScheduleTitle')}</DialogTitle>
-                <DialogDescription>{t('cmsScheduleDescription')}</DialogDescription>
+                <DialogDescription>
+                  {group && manyWaiting
+                    ? t('cmsScheduleAllDescription', { count: waitingLocales.length })
+                    : t('cmsScheduleDescription')}
+                </DialogDescription>
               </DialogHeader>
               <form
                 className="mt-4 flex flex-col gap-3"
@@ -502,12 +679,106 @@ export function CmsQueuePane({
           <MoreActionsSheet
             open={moreOpen}
             onOpenChange={setMoreOpen}
-            actions={[
-              { label: t('edit'), disabled: blocked, run: () => setEditing(true) },
-              { label: t('cmsSchedule'), disabled: blocked, run: openScheduler },
-              { label: t('cmsDismiss'), disabled: blocked, run: onDismiss },
-            ]}
+            actions={
+              group
+                ? groupActions
+                : [
+                    { label: t('edit'), disabled: blocked, run: () => setEditing(true) },
+                    { label: t('cmsSchedule'), disabled: blocked, run: openScheduler },
+                    { label: t('cmsDismiss'), disabled: blocked, run: onDismiss },
+                  ]
+            }
           />
+          {group ? (
+            <div className="flex flex-wrap items-center gap-2 px-5 py-4 md:px-7">
+              <Button
+                variant="accent"
+                onClick={group.onApproveAll}
+                disabled={pending}
+                className="max-md:h-11 max-md:flex-1"
+              >
+                {manyWaiting
+                  ? t('cmsApproveAll', { count: waitingLocales.length })
+                  : t('cmsApproveLocale', { locale: (waitingLocales[0] ?? '').toUpperCase() })}{' '}
+                <span aria-hidden>→</span>
+              </Button>
+              <MoreActionsTrigger disabled={pending} onOpen={() => setMoreOpen(true)} />
+              {group.openPending ? (
+                <Button
+                  variant="outline"
+                  onClick={() => setEditing(true)}
+                  disabled={blocked}
+                  className="max-md:hidden"
+                >
+                  {t('edit')}
+                </Button>
+              ) : null}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      disabled={pending}
+                      aria-label={tCommon('moreActions')}
+                      className="w-11 px-0 max-md:hidden"
+                    />
+                  }
+                >
+                  <MoreHorizontal className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="w-auto min-w-60">
+                  {group.openPending && manyWaiting ? (
+                    <>
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>
+                          {t('cmsMenuOnly', { locale: openLocale })}
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem disabled={blocked} onClick={onApprove}>
+                          {t('cmsApproveOnly', { locale: openLocale })}
+                          <DropdownMenuShortcut>⇧⌘↵</DropdownMenuShortcut>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={blocked} onClick={onDismiss}>
+                          {t('cmsDismissLocale', { locale: openLocale })}
+                        </DropdownMenuItem>
+                      </DropdownMenuGroup>
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : null}
+                  <DropdownMenuGroup>
+                    {manyWaiting ? (
+                      <DropdownMenuLabel>
+                        {t('cmsMenuAll', { count: waitingLocales.length })}
+                      </DropdownMenuLabel>
+                    ) : null}
+                    <DropdownMenuItem disabled={pending} onClick={openScheduler}>
+                      {manyWaiting
+                        ? t('cmsScheduleAll', { count: waitingLocales.length })
+                        : t('cmsScheduleLocale', {
+                            locale: (waitingLocales[0] ?? '').toUpperCase(),
+                          })}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={pending} onClick={group.onDismissAll}>
+                      {manyWaiting
+                        ? t('cmsDismissAll', { count: waitingLocales.length })
+                        : t('cmsDismissLocale', {
+                            locale: (waitingLocales[0] ?? '').toUpperCase(),
+                          })}
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {group.openPending ? null : (
+                <span className="text-[13px] text-ink-mute dark:text-foreground/60">
+                  {t(`cmsLanguageStatus.${openStatus}`, { locale: openLocale })}
+                </span>
+              )}
+              <span className="hidden font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
+                {group.openPending && manyWaiting
+                  ? t('shortcutCmsApproveAll', { locale: openLocale })
+                  : t('shortcutCmsApprove')}
+              </span>
+            </div>
+          ) : (
           <div className="flex flex-wrap items-center gap-2 px-5 py-4 md:px-7">
             <Button
               variant="accent"
@@ -546,6 +817,7 @@ export function CmsQueuePane({
               {t('shortcutCmsApprove')}
             </span>
           </div>
+          )}
         </div>
       )}
     </>
@@ -570,6 +842,103 @@ function withEmbedParam(url: string): string {
   } catch {
     return url;
   }
+}
+
+function previewPath(url: string | null): string {
+  if (!url) return '';
+  try {
+    return decodeURI(new URL(url).pathname);
+  } catch {
+    return url;
+  }
+}
+
+function CompareView({
+  fields,
+  reference,
+  openLocale,
+  openSlug,
+  openData,
+  openRefs,
+  yoursLabel,
+  slugLabel,
+  loadingLabel,
+  aspectLabel,
+}: {
+  fields: CmsFieldDef[];
+  reference: NonNullable<CmsPaneGroup['reference']>;
+  openLocale: string;
+  openSlug: string;
+  openData: EditableData;
+  openRefs: Record<string, CmsRefExpanded> | undefined;
+  yoursLabel: string;
+  slugLabel: string;
+  loadingLabel: string;
+  aspectLabel: string;
+}) {
+  if (!reference.detail) {
+    return (
+      <div className="flex min-h-[320px] flex-1 flex-col">
+        {reference.loadError !== undefined ? (
+          <p className="px-5 py-5 text-sm text-ink-mute md:px-7">{reference.loadError}</p>
+        ) : (
+          <PaneLoadingState label={loadingLabel} />
+        )}
+      </div>
+    );
+  }
+  const referenceDetail = reference.detail;
+  const labelClass = 'font-mono text-[10px] font-medium uppercase tracking-eyebrow';
+  const columns = 'grid grid-cols-1 gap-x-7 gap-y-2 sm:grid-cols-2';
+  const rows = fields.filter(
+    (field) => !isEmpty(referenceDetail.data[field.name]) || !isEmpty(openData[field.name]),
+  );
+  return (
+    <div className="px-5 pb-6 md:px-7">
+      <div className={cn(columns, 'pb-1 pt-4 max-sm:hidden')}>
+        <span className={cn(labelClass, 'text-ink-label')}>
+          {reference.locale.toUpperCase()}
+          {reference.yours ? ` · ${yoursLabel}` : ''}
+        </span>
+        <span className={cn(labelClass, 'text-ink-label')}>{openLocale.toUpperCase()}</span>
+      </div>
+      <section className="space-y-2 border-b-[1px] border-rule-soft py-4 dark:border-rule-on-dark">
+        <p className={cn(labelClass, 'text-ink-mute')}>{slugLabel}</p>
+        <div className={columns}>
+          <p className="break-all font-mono text-[13px] text-ink-mute">{referenceDetail.slug}</p>
+          <p className="break-all font-mono text-[13px] text-ink dark:text-foreground">{openSlug}</p>
+        </div>
+      </section>
+      {rows.map((field) => (
+        <section
+          key={field.name}
+          className="space-y-2 border-b-[1px] border-rule-soft py-4 last:border-b-0 dark:border-rule-on-dark"
+        >
+          <p className={cn(labelClass, 'text-ink-mute')}>{humanizeFieldName(field.name)}</p>
+          <div className={columns}>
+            <div className="min-w-0 opacity-70">
+              <FieldViewer
+                field={field}
+                value={referenceDetail.data[field.name]}
+                aspectLabel={aspectLabel}
+                refs={referenceDetail.refs}
+                entryLocale={referenceDetail.locale}
+              />
+            </div>
+            <div className="min-w-0">
+              <FieldViewer
+                field={field}
+                value={openData[field.name]}
+                aspectLabel={aspectLabel}
+                refs={openRefs}
+                entryLocale={openLocale}
+              />
+            </div>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
 }
 
 const EMPTY_FIELDS: CmsFieldDef[] = [];

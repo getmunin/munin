@@ -17,10 +17,11 @@ export interface ReviewDecisionNoticeValue {
   title: string;
   outcome: ReviewDecisionOutcome;
   platform: string | null;
+  languages?: number | null;
   shownOn: string | null;
 }
 
-type Translate = (key: string, values?: Record<string, string>) => string;
+type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 export function ReviewDecisionNotice({
   notice,
@@ -73,7 +74,16 @@ export function ReviewDecisionNotice({
 }
 
 function eyebrow(notice: ReviewDecisionNoticeValue, t: Translate): string {
-  if (notice.outcome === 'scheduled') return t('noticeScheduled');
+  const languages =
+    notice.languages && notice.languages > 1
+      ? t('noticeLanguages', { count: notice.languages })
+      : null;
+  if (notice.outcome === 'scheduled') {
+    return languages ? `${t('noticeScheduled')} · ${languages}` : t('noticeScheduled');
+  }
+  if (languages) {
+    return `${t(notice.outcome === 'dismissed' ? 'noticeDismissed' : 'noticeApproved')} · ${languages}`;
+  }
   if (notice.outcome === 'dismissed') {
     const verb = t('noticeDismissed');
     const detail = t(`outcomeDismissed.${notice.kind}`);

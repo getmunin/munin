@@ -29,6 +29,7 @@ import {
   socialDraftTitle,
 } from './inbox-helpers';
 import type {
+  CmsGroupAction,
   QueueActionError,
   InboxController,
   InboxQueueResponse,
@@ -231,6 +232,10 @@ export function useInboxData(): InboxController {
   const [retrying, setRetrying] = useState(false);
   const [queueDetailErrors, setQueueDetailErrors] = useState<Record<string, string>>({});
   const [queueActionError, setQueueActionError] = useState<QueueActionError>(null);
+  const [cmsFocus, setCmsFocus] = useState<{ openId: string | null; referenceId: string | null }>({
+    openId: null,
+    referenceId: null,
+  });
   const viewedProposals = useRef<Set<string>>(new Set());
   const loadSeqRef = useRef(0);
 
@@ -366,19 +371,26 @@ export function useInboxData(): InboxController {
     setQueueDetailErrors((prev) => clearKey(prev, id));
   }, []);
 
+  const focusCmsEntries = useCallback((openId: string | null, referenceId: string | null) => {
+    setCmsFocus((prev) =>
+      prev.openId === openId && prev.referenceId === referenceId ? prev : { openId, referenceId },
+    );
+  }, []);
+
+  const activeCmsId = activeQueueItem?.kind === 'cms' ? activeQueueItem.id : null;
+  const cmsPreviewId = cmsFocus.openId ?? activeCmsId;
   const cmsDetailId =
-    activeQueueItem?.kind === 'cms'
-      ? activeQueueItem.id
-      : activeScheduledItem?.kind === 'cms'
-        ? activeScheduledItem.id
-        : null;
+    cmsPreviewId ?? (activeScheduledItem?.kind === 'cms' ? activeScheduledItem.id : null);
+  const cmsReferenceId = cmsFocus.referenceId;
 
   useEffect(() => {
-    if (cmsDetailId === null) return;
-    if (cmsDetails[cmsDetailId] !== undefined) return;
-    if (queueDetailErrors[cmsDetailId]) return;
-    void loadCmsDetail(cmsDetailId);
-  }, [cmsDetailId, cmsDetails, queueDetailErrors, loadCmsDetail]);
+    for (const id of [cmsDetailId, cmsReferenceId]) {
+      if (id === null) continue;
+      if (cmsDetails[id] !== undefined) continue;
+      if (queueDetailErrors[id]) continue;
+      void loadCmsDetail(id);
+    }
+  }, [cmsDetailId, cmsReferenceId, cmsDetails, queueDetailErrors, loadCmsDetail]);
 
   useEffect(() => {
     if (!activeQueueItem || activeQueueItem.kind !== 'outreach') return;
@@ -407,8 +419,8 @@ export function useInboxData(): InboxController {
   }, [activeQueueItem, broadcastDetails, queueDetailErrors, loadBroadcastDetail]);
 
   useEffect(() => {
-    if (!activeQueueItem || activeQueueItem.kind !== 'cms') return;
-    const id = activeQueueItem.id;
+    if (cmsPreviewId === null) return;
+    const id = cmsPreviewId;
     const link = cmsPreviewLinks[id];
     if (link === undefined) {
       void loadCmsPreviewLink(id);
@@ -422,7 +434,7 @@ export function useInboxData(): InboxController {
     }
     const timer = setTimeout(() => void loadCmsPreviewLink(id), delay);
     return () => clearTimeout(timer);
-  }, [activeQueueItem, cmsPreviewLinks, loadCmsPreviewLink]);
+  }, [cmsPreviewId, cmsPreviewLinks, loadCmsPreviewLink]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => [{ channel: 'org' }], []);
 
@@ -802,6 +814,75 @@ export function useInboxData(): InboxController {
     [loadInbox, translateErr, beginPending, endPending],
   );
 
+  const decideCmsGroup = useCallback(
+    async (group: CmsGroupAction, action: 'approve' | 'dismiss') => {
+      const ids = group.members.map((member) => member.id);
+      ids.forEach(beginPending);
+      try {
+        await api(`/v1/cms/drafts/groups/${group.groupId}/${action}`, {
+          method: 'POST',
+          body: JSON.stringify({ expected: group.members }),
+        });
+        setQueueActionError(null);
+        await loadInbox();
+        setActiveQueueItem(null);
+        return true;
+      } catch (err) {
+        setQueueActionError((prev) => ({
+          type: action,
+          itemId: group.anchorId,
+          message: translateErr(err),
+          code: getErrorCode(err),
+          attempt:
+            prev && prev.type === action && prev.itemId === group.anchorId ? prev.attempt + 1 : 1,
+        }));
+        if (getErrorCode(err) === 'cms_translations_changed') {
+          setCmsDetails((prev) => ids.reduce((next, id) => clearKey(next, id), prev));
+          void loadInbox();
+        }
+        return false;
+      } finally {
+        ids.forEach(endPending);
+      }
+    },
+    [loadInbox, translateErr, beginPending, endPending],
+  );
+
+  const approveCmsGroup = useCallback(
+    (group: CmsGroupAction) => decideCmsGroup(group, 'approve'),
+    [decideCmsGroup],
+  );
+
+  const dismissCmsGroup = useCallback(
+    (group: CmsGroupAction) => decideCmsGroup(group, 'dismiss'),
+    [decideCmsGroup],
+  );
+
+  const scheduleCmsGroup = useCallback(
+    async (group: CmsGroupAction, scheduledAt: string) => {
+      const ids = group.members.map((member) => member.id);
+      ids.forEach(beginPending);
+      try {
+        await api(`/v1/cms/drafts/groups/${group.groupId}/schedule`, {
+          method: 'POST',
+          body: JSON.stringify({ expected: group.members, scheduledAt }),
+        });
+        await loadInbox();
+        setActiveQueueItem(null);
+      } catch (err) {
+        notify.error(translateErr(err));
+        if (getErrorCode(err) === 'cms_translations_changed') {
+          setCmsDetails((prev) => ids.reduce((next, id) => clearKey(next, id), prev));
+          void loadInbox();
+        }
+        throw err;
+      } finally {
+        ids.forEach(endPending);
+      }
+    },
+    [loadInbox, translateErr, beginPending, endPending],
+  );
+
   return {
     items,
     itemsTotal,
@@ -840,5 +921,9 @@ export function useInboxData(): InboxController {
     uploadCmsAsset,
     dismissQueue,
     scheduleQueue,
+    focusCmsEntries,
+    approveCmsGroup,
+    dismissCmsGroup,
+    scheduleCmsGroup,
   };
 }

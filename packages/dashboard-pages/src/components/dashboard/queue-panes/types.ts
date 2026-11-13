@@ -284,6 +284,17 @@ export interface SocialDraftEdit {
   linkCommentText?: string | null;
 }
 
+export type CmsEntryStatus = 'draft' | 'published' | 'scheduled' | 'archived';
+
+export interface CmsTranslationDto {
+  id: string;
+  locale: string;
+  status: CmsEntryStatus;
+  version: number;
+  title: string;
+  isDefaultLocale: boolean;
+}
+
 export interface CmsDraftSummaryDto {
   id: string;
   collectionId: string;
@@ -291,6 +302,8 @@ export interface CmsDraftSummaryDto {
   collectionName: string;
   slug: string;
   locale: string;
+  translationGroupId?: string;
+  translations?: CmsTranslationDto[];
   title: string | null;
   titleFieldName: string | null;
   wordCount: number | null;
@@ -383,7 +396,7 @@ export interface CmsDraftDetailDto {
   collectionSlug: string;
   slug: string;
   locale: string;
-  status: 'draft' | 'published' | 'scheduled' | 'archived';
+  status: CmsEntryStatus;
   version: number;
   data: Record<string, unknown>;
   assets?: Record<string, CmsAssetExpanded>;

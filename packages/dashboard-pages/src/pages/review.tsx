@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { cn, Tabs, TabsList, TabsPanel, TabsTrigger } from '@getmunin/ui';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
@@ -9,17 +9,23 @@ import { useOrgHref, usePathname, useRouter } from '../i18n-navigation';
 import { useInboxData } from '../components/dashboard/inbox-data';
 import { ScheduledCancelDialog } from '../components/dashboard/scheduled-cancel-dialog';
 import {
+  groupReviewQueue,
   nextAfterDecision,
   partitionReviewQueue,
   resolveReviewFirstRun,
+  reviewEntryIds,
   type ReviewDecisionOutcome,
 } from '../components/dashboard/review-queue';
+import {
+  ReviewCmsGroupPane,
+  type ReviewDecideOptions,
+} from '../components/dashboard/review-cms-group-pane';
 import {
   ReviewDecisionNotice,
   type ReviewDecisionNoticeValue,
 } from '../components/dashboard/review-decision-notice';
 import type { QueueItem } from '../components/dashboard/queue-panes/types';
-import { ReviewRow } from '../components/dashboard/review-row';
+import { ReviewGroupRow, ReviewRow } from '../components/dashboard/review-row';
 import { ReviewKbPane } from '../components/dashboard/review-kb-pane';
 import { ReviewBlockingPane } from '../components/dashboard/review-blocking-pane';
 import { ReviewDecidedRow } from '../components/dashboard/review-decided-row';
@@ -42,6 +48,7 @@ type ReviewTab = 'waiting' | 'scheduled' | 'decided';
 
 export function ReviewPage({ selectedId = null }: { selectedId?: string | null }) {
   const t = useTranslations('dashboard.console.review');
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const inbox = useInboxData();
@@ -60,18 +67,20 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     () => partitionReviewQueue(inbox.queue),
     [inbox.queue],
   );
+  const blockingEntries = useMemo(() => groupReviewQueue(blocking, locale), [blocking, locale]);
   const recentDecisions = decisions.items;
 
   const scheduled = inbox.scheduled;
 
   const idsByTab: Record<ReviewTab, string[]> = useMemo(
     () => ({
-      waiting: [...blocking.map((b) => b.id), ...improvements.map((c) => c.id)],
+      waiting: [...reviewEntryIds(blockingEntries), ...improvements.map((c) => c.id)],
       scheduled: scheduled.map((s) => s.id),
       decided: recentDecisions.map((d) => d.id),
     }),
-    [blocking, improvements, scheduled, recentDecisions],
+    [blockingEntries, improvements, scheduled, recentDecisions],
   );
+  const waitingCount = blockingEntries.length + improvements.length;
 
   const [handoff, setHandoff] = useState<{
     from: string;
@@ -131,6 +140,14 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
 
   const activeId = routeSelectedId;
   const selectedBlocking = activeId ? blocking.find((b) => b.id === activeId) : undefined;
+  const selectedGroup =
+    selectedBlocking?.kind === 'cms'
+      ? blockingEntries.flatMap((entry) =>
+          entry.type === 'group' && entry.group.members.some((m) => m.id === selectedBlocking.id)
+            ? [entry.group]
+            : [],
+        )[0]
+      : undefined;
   const selectedCandidate = activeId
     ? improvements.find((c) => c.id === activeId)
     : undefined;
@@ -231,8 +248,15 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
 
   const decide =
     (decided: QueueItem) =>
-    (outcome: ReviewDecisionOutcome, run: () => Promise<boolean>): Promise<boolean> => {
-      const next = nextAfterDecision(idsByTab.waiting, decided.id);
+    (
+      outcome: ReviewDecisionOutcome,
+      run: () => Promise<boolean>,
+      options: ReviewDecideOptions = {},
+    ): Promise<boolean> => {
+      const next =
+        options.next !== undefined
+          ? options.next
+          : nextAfterDecision(idsByTab.waiting, decided.id);
       const abandon = () => {
         if (inFlightRef.current !== decided.id) return;
         inFlightRef.current = null;
@@ -242,7 +266,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
       inFlightRef.current = decided.id;
       setHandoff({ from: decided.id, to: next, settled: false });
       setArrival(
-        next
+        next && !options.withinGroup
           ? {
               id: next,
               from: decided.id,
@@ -265,9 +289,10 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
         setNotice({
           id: decided.id,
           kind: decided.kind,
-          title: decided.title,
+          title: options.title ?? decided.title,
           outcome,
           platform: decided.kind === 'social' ? decided.raw.platform : null,
+          languages: options.languages ?? null,
           shownOn: next,
         });
         if (next) select(next, true);
@@ -318,8 +343,8 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           <TabsList className="w-full shrink-0 gap-5 px-5">
             <TabsTrigger value="waiting" className="px-0">
               {t('tabWaiting')}
-              {idsByTab.waiting.length > 0 ? (
-                <span className="ml-1.5 text-ink-mute"> · {idsByTab.waiting.length}</span>
+              {waitingCount > 0 ? (
+                <span className="ml-1.5 text-ink-mute"> · {waitingCount}</span>
               ) : null}
             </TabsTrigger>
             <TabsTrigger value="scheduled" className="px-0">
@@ -345,19 +370,33 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
                   <ConsoleSectionLabel
                     note={blocking.length > 0 ? t('sectionBlockingNote') : undefined}
                   >
-                    {t('sectionBlocking', { count: blocking.length })}
+                    {t('sectionBlocking', { count: blockingEntries.length })}
                   </ConsoleSectionLabel>
-                  {blocking.length === 0 ? (
+                  {blockingEntries.length === 0 ? (
                     <ConsoleListEmpty body={t('emptyBlockingBody')} />
                   ) : (
-                    blocking.map((item) => (
-                      <ReviewRow
-                        key={`${item.kind}-${item.id}`}
-                        item={item}
-                        active={item.id === activeId}
-                        onSelect={() => select(item.id)}
-                      />
-                    ))
+                    blockingEntries.map((entry) =>
+                      entry.type === 'group' ? (
+                        <ReviewGroupRow
+                          key={`group-${entry.group.groupId}`}
+                          group={entry.group}
+                          active={entry.group.members.some((m) => m.id === activeId)}
+                          onSelect={() => {
+                            const first = entry.group.members[0];
+                            if (first && !entry.group.members.some((m) => m.id === activeId)) {
+                              select(first.id);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <ReviewRow
+                          key={`${entry.item.kind}-${entry.item.id}`}
+                          item={entry.item}
+                          active={entry.item.id === activeId}
+                          onSelect={() => select(entry.item.id)}
+                        />
+                      ),
+                    )
                   )}
 
                   <ConsoleSectionLabel
@@ -460,6 +499,15 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
               />
             )}
           </section>
+        ) : selectedBlocking?.kind === 'cms' && selectedGroup ? (
+          <ReviewCmsGroupPane
+            group={selectedGroup}
+            item={selectedBlocking}
+            controller={inbox}
+            waitingIds={idsByTab.waiting}
+            decide={decide(selectedBlocking)}
+            onSelect={(id) => select(id, true)}
+          />
         ) : selectedBlocking ? (
           <ReviewBlockingPane
             item={selectedBlocking}

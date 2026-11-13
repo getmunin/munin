@@ -123,6 +123,17 @@ export class CmsConflictError extends Error {
   }
 }
 
+export class CmsTranslationsChangedError extends Error {
+  readonly code = 'cms_translations_changed';
+  readonly params: { locales: string };
+  constructor(public readonly locales: string[]) {
+    super(
+      `cms_translations_changed: translations changed since they were listed (${locales.join(', ')})`,
+    );
+    this.params = { locales: locales.map((locale) => locale.toUpperCase()).join(', ') };
+  }
+}
+
 export const ENTRY_STATUSES = ['draft', 'published', 'scheduled', 'archived'] as const;
 export type EntryStatus = (typeof ENTRY_STATUSES)[number];
 
@@ -190,6 +201,15 @@ export interface EntryListResult {
   truncated: boolean;
 }
 
+export interface CmsTranslationSibling {
+  id: string;
+  locale: string;
+  status: EntryStatus;
+  version: number;
+  title: string;
+  isDefaultLocale: boolean;
+}
+
 export interface CmsDraftEntrySummary {
   id: string;
   collectionId: string;
@@ -197,11 +217,18 @@ export interface CmsDraftEntrySummary {
   collectionName: string;
   slug: string;
   locale: string;
+  translationGroupId: string;
+  translations?: CmsTranslationSibling[];
   title: string | null;
   titleFieldName: string | null;
   wordCount: number | null;
   version: number;
   updatedAt: string;
+}
+
+export interface TranslationExpectation {
+  id: string;
+  version: number;
 }
 
 export interface CmsScheduledEntrySummary extends CmsDraftEntrySummary {
@@ -538,8 +565,73 @@ export class CmsService {
   }
 
   async listDraftEntries(limit = 50): Promise<CmsDraftEntrySummary[]> {
-    const rows = await this.selectEntrySummaryRows('draft', limit, 'updated');
-    return rows.map((r) => this.toEntrySummary(r));
+    const ctx = getCurrentContext();
+    const latestDraft = sql<Date>`max(${schema.cmsEntries.updatedAt})`;
+    const groups = await ctx.db
+      .select({ groupId: schema.cmsEntries.translationGroupId })
+      .from(schema.cmsEntries)
+      .where(eq(schema.cmsEntries.status, 'draft'))
+      .groupBy(schema.cmsEntries.translationGroupId)
+      .orderBy(desc(latestDraft))
+      .limit(clampLimit(limit, 50, 200));
+    if (groups.length === 0) return [];
+
+    const rows = await ctx.db
+      .select({
+        id: schema.cmsEntries.id,
+        collectionId: schema.cmsEntries.collectionId,
+        slug: schema.cmsEntries.slug,
+        locale: schema.cmsEntries.locale,
+        translationGroupId: schema.cmsEntries.translationGroupId,
+        status: schema.cmsEntries.status,
+        data: schema.cmsEntries.data,
+        version: schema.cmsEntries.version,
+        updatedAt: schema.cmsEntries.updatedAt,
+        collectionName: schema.cmsCollections.name,
+        collectionSlug: schema.cmsCollections.slug,
+        collectionFields: schema.cmsCollections.fields,
+      })
+      .from(schema.cmsEntries)
+      .innerJoin(
+        schema.cmsCollections,
+        eq(schema.cmsCollections.id, schema.cmsEntries.collectionId),
+      )
+      .where(
+        inArray(
+          schema.cmsEntries.translationGroupId,
+          groups.map((g) => g.groupId),
+        ),
+      )
+      .orderBy(asc(schema.cmsEntries.createdAt), asc(schema.cmsEntries.id));
+
+    const [defaultLocale] = await ctx.db
+      .select({ code: schema.cmsLocales.code })
+      .from(schema.cmsLocales)
+      .where(eq(schema.cmsLocales.isDefault, true))
+      .limit(1);
+
+    const siblings = new Map<string, CmsTranslationSibling[]>();
+    for (const row of rows) {
+      const derived = deriveEntryTitle((row.collectionFields ?? []) as FieldDef[], row.data ?? {});
+      const list = siblings.get(row.translationGroupId) ?? [];
+      list.push({
+        id: row.id,
+        locale: row.locale,
+        status: row.status as EntryStatus,
+        version: row.version,
+        title: derived.title ?? row.slug,
+        isDefaultLocale: row.locale === defaultLocale?.code,
+      });
+      siblings.set(row.translationGroupId, list);
+    }
+
+    return rows
+      .filter((row) => row.status === 'draft')
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .map((row) => ({
+        ...this.toEntrySummary(row),
+        translations: siblings.get(row.translationGroupId) ?? [],
+      }));
   }
 
   async listScheduledEntries(limit = 50): Promise<CmsScheduledEntrySummary[]> {
@@ -569,6 +661,7 @@ export class CmsService {
         collectionId: schema.cmsEntries.collectionId,
         slug: schema.cmsEntries.slug,
         locale: schema.cmsEntries.locale,
+        translationGroupId: schema.cmsEntries.translationGroupId,
         data: schema.cmsEntries.data,
         version: schema.cmsEntries.version,
         updatedAt: schema.cmsEntries.updatedAt,
@@ -622,6 +715,7 @@ export class CmsService {
         collectionId: schema.cmsEntries.collectionId,
         slug: schema.cmsEntries.slug,
         locale: schema.cmsEntries.locale,
+        translationGroupId: schema.cmsEntries.translationGroupId,
         data: schema.cmsEntries.data,
         version: schema.cmsEntries.version,
         updatedAt: schema.cmsEntries.updatedAt,
@@ -651,6 +745,7 @@ export class CmsService {
     collectionName: string;
     slug: string;
     locale: string;
+    translationGroupId: string;
     data: Record<string, unknown> | null;
     version: number;
     updatedAt: Date;
@@ -666,6 +761,7 @@ export class CmsService {
       collectionName: r.collectionName,
       slug: r.slug,
       locale: r.locale,
+      translationGroupId: r.translationGroupId,
       title: derived.title ?? r.slug,
       titleFieldName: derived.fieldName,
       wordCount: countWordsInBody(data),
@@ -1283,14 +1379,94 @@ export class CmsService {
     ifVersion: number;
     scheduledAt: string;
   }): Promise<EntryDto> {
-    const at = new Date(input.scheduledAt);
-    if (Number.isNaN(at.getTime())) {
-      throw new CmsInvalidError('scheduledAt must be ISO 8601');
+    return this.transition({ ...input, scheduledAt: parseScheduledAt(input.scheduledAt) }, 'scheduled');
+  }
+
+  async publishTranslationGroup(input: {
+    groupId: string;
+    expected: TranslationExpectation[];
+  }): Promise<EntryDto[]> {
+    const drafts = await this.loadReviewedDrafts(input.groupId, input.expected);
+    const publishedAt = new Date();
+    const published: EntryDto[] = [];
+    for (const draft of drafts) {
+      published.push(
+        await this.transition({ id: draft.id, ifVersion: draft.version, publishedAt }, 'published'),
+      );
     }
-    if (at.getTime() <= Date.now()) {
-      throw new CmsInvalidError('scheduledAt must be in the future');
+    return published;
+  }
+
+  async scheduleTranslationGroup(input: {
+    groupId: string;
+    expected: TranslationExpectation[];
+    scheduledAt: string;
+  }): Promise<EntryDto[]> {
+    const scheduledAt = parseScheduledAt(input.scheduledAt);
+    const drafts = await this.loadReviewedDrafts(input.groupId, input.expected);
+    const scheduled: EntryDto[] = [];
+    for (const draft of drafts) {
+      scheduled.push(
+        await this.transition({ id: draft.id, ifVersion: draft.version, scheduledAt }, 'scheduled'),
+      );
     }
-    return this.transition({ ...input, scheduledAt: at }, 'scheduled');
+    return scheduled;
+  }
+
+  async archiveTranslationGroup(input: {
+    groupId: string;
+    expected: TranslationExpectation[];
+    reason?: string;
+  }): Promise<EntryDto[]> {
+    const drafts = await this.loadReviewedDrafts(input.groupId, input.expected);
+    const archived: EntryDto[] = [];
+    for (const draft of drafts) {
+      archived.push(
+        await this.transition(
+          { id: draft.id, ifVersion: draft.version, ...(input.reason ? { reason: input.reason } : {}) },
+          'archived',
+        ),
+      );
+    }
+    return archived;
+  }
+
+  private async loadReviewedDrafts(
+    groupId: string,
+    expected: TranslationExpectation[],
+  ): Promise<Array<{ id: string; locale: string; version: number }>> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({
+        id: schema.cmsEntries.id,
+        locale: schema.cmsEntries.locale,
+        version: schema.cmsEntries.version,
+        status: schema.cmsEntries.status,
+      })
+      .from(schema.cmsEntries)
+      .where(eq(schema.cmsEntries.translationGroupId, groupId))
+      .orderBy(asc(schema.cmsEntries.createdAt), asc(schema.cmsEntries.id));
+    if (rows.length === 0) {
+      throw new NotFoundException(`cms_not_found: translation group ${groupId}`);
+    }
+
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const reviewed = new Set<string>();
+    const changed = new Set<string>();
+    for (const item of expected) {
+      const row = byId.get(item.id);
+      if (!row) {
+        throw new CmsInvalidError(`entry ${item.id} is not in translation group ${groupId}`);
+      }
+      reviewed.add(row.id);
+      if (row.status !== 'draft' || row.version !== item.version) changed.add(row.locale);
+    }
+    const drafts = rows.filter((row) => row.status === 'draft');
+    for (const draft of drafts) {
+      if (!reviewed.has(draft.id)) changed.add(draft.locale);
+    }
+    if (changed.size > 0) throw new CmsTranslationsChangedError([...changed]);
+    return drafts;
   }
 
   async unscheduleEntry(input: { id: string; ifVersion: number }): Promise<EntryDto> {
@@ -2791,6 +2967,17 @@ function remapEntryData(
 function clampLimit(value: number | undefined, fallback: number, max: number): number {
   if (value === undefined || value <= 0) return fallback;
   return Math.min(value, max);
+}
+
+function parseScheduledAt(value: string): Date {
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) {
+    throw new CmsInvalidError('scheduledAt must be ISO 8601');
+  }
+  if (at.getTime() <= Date.now()) {
+    throw new CmsInvalidError('scheduledAt must be in the future');
+  }
+  return at;
 }
 
 function wantsReferences(include?: string[]): boolean {

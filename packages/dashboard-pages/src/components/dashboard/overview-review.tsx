@@ -1,11 +1,13 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useMemo } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from '../../i18n-navigation';
 import { useCountdown } from '../../lib/use-relative';
 import { ConsoleListEmpty } from '../console-empty';
 import { ConsoleSectionLabel } from '../console-section-label';
-import { ReviewRow } from './review-row';
+import { ReviewGroupRow, ReviewRow } from './review-row';
+import { groupReviewQueue } from './review-queue';
 import { StatRow } from './overview-stat-row';
 import type { QueueItem, ScheduledItem } from './queue-panes/types';
 
@@ -20,38 +22,50 @@ export function OverviewReview({
 }) {
   const t = useTranslations('dashboard.overview.sections');
   const router = useRouter();
+  const locale = useLocale();
   const countdown = useCountdown();
   const next = scheduled[0];
+  const entries = useMemo(() => groupReviewQueue(queue, locale), [queue, locale]);
 
   return (
     <section className="border-t border-t-ink dark:border-t-rule-on-dark">
       <StatRow
         href="/dashboard/review"
-        count={queue.length}
+        count={entries.length}
         dot="ring"
         label={t('reviewLabel')}
-        note={queue.length > 0 ? t('reviewNoteSome') : t('reviewNoteNone')}
+        note={entries.length > 0 ? t('reviewNoteSome') : t('reviewNoteNone')}
         cta={t('reviewOpen')}
       />
       <ul className="border-t border-rule-soft dark:border-rule-on-dark">
         <ConsoleSectionLabel
-          note={queue.length > WAITING_LIMIT ? t('waitingMore', { count: queue.length }) : undefined}
+          note={entries.length > WAITING_LIMIT ? t('waitingMore', { count: entries.length }) : undefined}
         >
           {t('waiting')}
         </ConsoleSectionLabel>
-        {queue.length === 0 ? (
+        {entries.length === 0 ? (
           <ConsoleListEmpty body={t('waitingEmpty')} />
         ) : (
-          queue
-            .slice(0, WAITING_LIMIT)
-            .map((item) => (
-              <ReviewRow
-                key={`${item.kind}-${item.id}`}
-                item={item}
+          entries.slice(0, WAITING_LIMIT).map((entry) =>
+            entry.type === 'group' ? (
+              <ReviewGroupRow
+                key={`group-${entry.group.groupId}`}
+                group={entry.group}
                 active={false}
-                onSelect={() => router.push(`/dashboard/review/${item.id}`)}
+                onSelect={() => {
+                  const first = entry.group.members[0];
+                  if (first) router.push(`/dashboard/review/${first.id}`);
+                }}
               />
-            ))
+            ) : (
+              <ReviewRow
+                key={`${entry.item.kind}-${entry.item.id}`}
+                item={entry.item}
+                active={false}
+                onSelect={() => router.push(`/dashboard/review/${entry.item.id}`)}
+              />
+            ),
+          )
         )}
       </ul>
       {next ? (

@@ -1643,6 +1643,122 @@ const skipReason = TEST_URL
     expect(patchedBody.refs?.[enTargetId]).toMatchObject({ slug: 'permisjon', locale: 'nb' });
   }, 30_000);
 
+  it('the drafts group routes decide every waiting locale together and refuse a stale list with a named locale', async () => {
+    const ids: Record<string, string> = {};
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Release notes',
+          slug: 'release-notes',
+          localized: true,
+          fields: [{ name: 'title', type: 'text', required: true }],
+        },
+      });
+      const en = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'release-notes',
+            slug: 'roles',
+            locale: 'en',
+            data: { title: 'Pick a role' },
+          },
+        }),
+      );
+      ids.en = en.id;
+      const nb = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'release-notes',
+            slug: 'roller',
+            locale: 'nb',
+            translationOf: en.id,
+            data: { title: 'Velg en rolle' },
+          },
+        }),
+      );
+      ids.nb = nb.id;
+    });
+
+    const headers = { Authorization: `Bearer ${adminKey}`, 'content-type': 'application/json' };
+    type Draft = { translationGroupId: string; version: number; status: string };
+    const readDraft = async (id: string) =>
+      (await (await fetch(`${baseUrl}/v1/cms/drafts/${id}`, { headers })).json()) as Draft;
+    const decide = (groupId: string, action: string, body: unknown) =>
+      fetch(`${baseUrl}/v1/cms/drafts/groups/${groupId}/${action}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+    const en = await readDraft(ids.en!);
+    const nb = await readDraft(ids.nb!);
+    expect(nb.translationGroupId).toBe(en.translationGroupId);
+    const groupId = en.translationGroupId;
+
+    const stale = await decide(groupId, 'approve', {
+      expected: [
+        { id: ids.en, version: en.version },
+        { id: ids.nb, version: nb.version + 1 },
+      ],
+    });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({
+      code: 'cms_translations_changed',
+      params: { locales: 'NB' },
+    });
+    expect((await readDraft(ids.en!)).status).toBe('draft');
+
+    const unseen = await decide(groupId, 'approve', {
+      expected: [{ id: ids.en, version: en.version }],
+    });
+    expect(unseen.status).toBe(409);
+    expect(await unseen.json()).toMatchObject({ params: { locales: 'NB' } });
+
+    expect((await decide(groupId, 'approve', { expected: [] })).status).toBe(400);
+    expect(
+      (await decide('cmg_missing', 'approve', { expected: [{ id: ids.en, version: en.version }] }))
+        .status,
+    ).toBe(404);
+    expect(
+      (
+        await decide(groupId, 'schedule', {
+          expected: [
+            { id: ids.en, version: en.version },
+            { id: ids.nb, version: nb.version },
+          ],
+          scheduledAt: '2001-01-01T00:00:00.000Z',
+        })
+      ).status,
+    ).toBe(400);
+
+    const approved = await decide(groupId, 'approve', {
+      expected: [
+        { id: ids.en, version: en.version },
+        { id: ids.nb, version: nb.version },
+      ],
+    });
+    expect(approved.status).toBe(200);
+    expect(await approved.json()).toEqual({
+      groupId,
+      entries: [
+        { id: ids.en, locale: 'en', status: 'published', version: en.version + 1 },
+        { id: ids.nb, locale: 'nb', status: 'published', version: nb.version + 1 },
+      ],
+    });
+
+    const again = await decide(groupId, 'dismiss', {
+      expected: [
+        { id: ids.en, version: en.version + 1 },
+        { id: ids.nb, version: nb.version + 1 },
+      ],
+    });
+    expect(again.status).toBe(409);
+    expect(await again.json()).toMatchObject({ params: { locales: 'EN, NB' } });
+  }, 30_000);
+
   it('cms_search_entries with include:["references"] expands reference fields and inline ref:// tokens', async () => {
     let targetId = '';
     await withClient(adminKey, async (c) => {

@@ -192,12 +192,12 @@ export function ViewTab({
   );
 }
 
-export function useCmdEnter(handler: () => void) {
+export function useCmdEnter(handler: (event: KeyboardEvent) => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
-        handler();
+        handler(e);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -275,6 +275,7 @@ export function PaneHeader({
   title,
   meta,
   rightExtra,
+  below,
   onClose,
   closeLabel,
   className,
@@ -284,6 +285,7 @@ export function PaneHeader({
   title: string;
   meta?: string;
   rightExtra?: React.ReactNode;
+  below?: React.ReactNode;
   onClose?: () => void;
   closeLabel: string;
   className?: string;
@@ -309,6 +311,7 @@ export function PaneHeader({
               {meta}
             </p>
           )}
+          {below ? <div className="pt-1.5">{below}</div> : null}
         </div>
         {onClose ? (
           <button

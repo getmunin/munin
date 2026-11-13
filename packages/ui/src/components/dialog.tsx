@@ -2,6 +2,7 @@ import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
 import { cn } from "../cn"
+import { useRevealErrors } from "./reveal-errors"
 
 function Dialog(props: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root {...props} />
@@ -30,12 +31,24 @@ function DialogBackdrop({
 function DialogContent({
   className,
   children,
+  ref,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Popup>) {
+  const [popup, setPopup] = React.useState<HTMLDivElement | null>(null)
+  useRevealErrors(popup)
+  const mergedRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      setPopup(node)
+      if (typeof ref === "function") ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref]
+  )
   return (
     <DialogPortal>
       <DialogBackdrop />
       <DialogPrimitive.Popup
+        ref={mergedRef}
         data-slot="dialog-content"
         className={cn(
           "fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border-[1px] border-ink bg-paper p-6 outline-none transition-opacity duration-200 ease-munin opacity-100 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 dark:bg-card dark:border-rule-on-dark",

@@ -1256,6 +1256,8 @@ export const crmCompanies = pgTable(
       .references(() => orgs.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     domain: text('domain'),
+    registrationCountry: text('registration_country'),
+    registrationNumber: text('registration_number'),
     ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
     tags: jsonb('tags').$type<string[]>().notNull().default([]),
     customFields: jsonb('custom_fields').$type<Record<string, unknown>>().notNull().default({}),
@@ -1270,6 +1272,10 @@ export const crmCompanies = pgTable(
   (t) => ({
     orgIdx: index('crm_companies_org_idx').on(t.orgId),
     domainIdx: index('crm_companies_domain_idx').on(t.orgId, t.domain),
+    registrationUq: uniqueIndex('crm_companies_org_registration_uq')
+      .on(t.orgId, t.registrationCountry, t.registrationNumber)
+      .where(sql`${t.registrationNumber} IS NOT NULL`),
+    ownerIdx: index('crm_companies_org_owner_idx').on(t.orgId, t.ownerUserId),
   }),
 );
 

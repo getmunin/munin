@@ -32,6 +32,7 @@ import {
 } from '../nav/console-groups';
 import type { QueueCounts } from '../components/dashboard/conversation-queue';
 import type { InboxQueueResponse } from '../components/dashboard/inbox-types';
+import { countReviewDecisions } from '../components/dashboard/review-queue';
 import { BrandHead, BrandMark } from './brand-head';
 import { MobileBackProvider, useMobileBackAction } from './mobile-back';
 
@@ -66,7 +67,7 @@ function useConsoleData(isAdmin: boolean, roleLoading: boolean): { badges: Conso
       .then((res) =>
         setBadges({
           queue: res.liveTotal,
-          review: res.waiting.length,
+          review: countReviewDecisions(res.waiting),
         }),
       )
       .catch(() => undefined);

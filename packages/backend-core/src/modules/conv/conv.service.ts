@@ -1416,6 +1416,7 @@ export class ConvService {
     metadata?: Record<string, unknown>;
     messageMetadata?: Record<string, unknown>;
     bodyHtml?: string;
+    firstMessageAsDraft?: boolean;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
   }): Promise<ConversationDetail> {
@@ -1448,6 +1449,19 @@ export class ConvService {
       agentMode: input.agentMode ?? (channelRows[0].defaultAgentMode as AgentMode),
       metadata: input.metadata,
     });
+
+    if (input.firstMessageAsDraft) {
+      await ctx.db
+        .update(schema.convConversations)
+        .set({ lastMessageAt: new Date() })
+        .where(eq(schema.convConversations.id, conv.id));
+      await this.webhooks.emit({
+        type: 'conversation.created',
+        payload: { conversationId: conv.id, displayId: conv.displayId, channelId: conv.channelId },
+      });
+      await this.setDraftReply({ conversationId: conv.id, body: input.body });
+      return this.getConversation(conv.id);
+    }
 
     const [firstMsg] = await ctx.db
       .insert(schema.convMessages)

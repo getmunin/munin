@@ -383,7 +383,7 @@ export class JourneyPublishingService {
     }
     const spec = JourneySpecSchema.parse(row.spec);
     const pinned = await autoTemplateHashes(spec);
-    if (JSON.stringify(pinned) !== JSON.stringify(row.pinnedTemplates)) {
+    if (hashSpec(pinned) !== hashSpec(row.pinnedTemplates)) {
       throw new ConflictException(
         `journeys_conflict: an email template used by an auto step changed after the publish review was prepared — request publish again and review it`,
       );

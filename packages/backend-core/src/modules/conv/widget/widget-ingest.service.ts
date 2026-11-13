@@ -23,6 +23,7 @@ import {
 import { freeEmailForAttestation } from '../../connectors/attested-email.ts';
 import { parseMessageComponents, type MessageComponent } from '@getmunin/types';
 import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
+import { linkEndUserContact } from '../../crm/end-user-contact.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
@@ -799,6 +800,7 @@ export class WidgetIngestService {
       identity.mode === 'verified' && identity.email
         ? await this.bindSignedEmail(tx, orgId, endUser.id, identity.email)
         : null;
+    if (identity.mode === 'verified') await linkEndUserContact(tx, orgId, endUser.id, signedEmail);
     const contact = await this.findOrCreateContact(tx, orgId, input, identity, endUser.id);
 
     const conv = await this.findOrCreateConversation(
@@ -1234,6 +1236,10 @@ export class WidgetIngestService {
       input.visitorId,
       identity,
     );
+    const signedEmail = identity.email
+      ? await this.bindSignedEmail(tx, orgId, result.endUserId, identity.email)
+      : null;
+    await linkEndUserContact(tx, orgId, result.endUserId, signedEmail);
     return result;
   }
 

@@ -20,6 +20,8 @@ const skipReason = TEST_URL
   let orgId: string;
   let endUserId: string;
   let actor: ActorIdentity;
+  let memberUserId: string;
+  let outsiderUserId: string;
 
   beforeAll(async () => {
     await runMigrations(TEST_URL!);
@@ -38,6 +40,17 @@ const skipReason = TEST_URL
       .values({ orgId, externalId: `eu-${ts}`, name: 'Test End User' })
       .returning();
     endUserId = eu!.id;
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [member, outsider] = await db
+      .insert(schema.users)
+      .values([
+        { email: `crm-member-${ts}@example.com`, name: 'Kari Nordmann' },
+        { email: `crm-outsider-${ts}@example.com`, name: 'Ola Nordmann' },
+      ])
+      .returning();
+    memberUserId = member!.id;
+    outsiderUserId = outsider!.id;
+    await db.insert(schema.orgMembers).values({ orgId, userId: memberUserId, role: 'member' });
     actor = new ActorIdentity('admin_agent', 'agt_crm_test', orgId, ['*'], ['admin']);
 
     svc = new CrmService(new WebhookDispatcher(), new DefaultQuotasService(), new AddressDeliverabilityService());
@@ -47,6 +60,7 @@ const skipReason = TEST_URL
     if (db) {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       await db.delete(schema.orgs).where(sql`id = ${orgId}`);
+      await db.delete(schema.users).where(sql`id in (${memberUserId}, ${outsiderUserId})`);
     }
   });
 
@@ -232,6 +246,134 @@ const skipReason = TEST_URL
 
     it('getCompany 404s on unknown id', async () => {
       await expect(run(() => svc.getCompany(randomUUID()))).rejects.toThrow(NotFoundException);
+    });
+
+    it('createCompany stores a normalized registration and an org member as owner', async () => {
+      const co = await run(() =>
+        svc.createCompany({
+          name: 'Acme',
+          registration: { country: 'no', number: 'NO 123 456 785 MVA' },
+          ownerUserId: memberUserId,
+        }),
+      );
+      expect(co.registrationCountry).toBe('NO');
+      expect(co.registrationNumber).toBe('123456785');
+      expect(co.ownerUserId).toBe(memberUserId);
+    });
+
+    it('createCompany refuses a registration another company already holds, however it is formatted', async () => {
+      const first = await run(() =>
+        svc.createCompany({ name: 'Acme', registration: { country: 'NO', number: '123456785' } }),
+      );
+      const attempt = run(() =>
+        svc.createCompany({ name: 'Acme AS', registration: { country: 'NO', number: '123 456 785' } }),
+      );
+      await expect(attempt).rejects.toThrow(ConflictException);
+      await expect(attempt).rejects.toThrow(first.id);
+    });
+
+    it('the same number under another country is a different registration', async () => {
+      await run(() =>
+        svc.createCompany({ name: 'Acme', registration: { country: 'DE', number: 'HRB12345' } }),
+      );
+      const other = await run(() =>
+        svc.createCompany({ name: 'Globex', registration: { country: 'AT', number: 'HRB12345' } }),
+      );
+      expect(other.registrationCountry).toBe('AT');
+    });
+
+    it('createCompany rejects a registration number with a wrong check digit', async () => {
+      await expect(
+        run(() =>
+          svc.createCompany({ name: 'Acme', registration: { country: 'NO', number: '123456789' } }),
+        ),
+      ).rejects.toThrow(CrmInvalidError);
+    });
+
+    it('createCompany rejects an owner who is not a member of the org', async () => {
+      await expect(
+        run(() => svc.createCompany({ name: 'Acme', ownerUserId: outsiderUserId })),
+      ).rejects.toThrow(/not a member of this org/);
+    });
+
+    it('import matches an existing company by registration even when name and domain differ', async () => {
+      const existing = await run(() =>
+        svc.createCompany({ name: 'Acme', registration: { country: 'NO', number: '123456785' } }),
+      );
+      const result = await run(() =>
+        svc.importCrm({
+          pipelines: [],
+          segments: [],
+          companies: [
+            {
+              id: 'src_co',
+              name: 'Acme Holding AS',
+              domain: 'acme.example',
+              registrationCountry: 'NO',
+              registrationNumber: '123456785',
+              tags: [],
+              customFields: {},
+            },
+          ],
+          contacts: [],
+          deals: [],
+          activities: [],
+          relationships: [],
+        }),
+      );
+      expect(result.idMap['src_co']).toBe(existing.id);
+      expect(result.skipped).toBe(1);
+    });
+
+    it('export carries the registration and an export without one still imports', async () => {
+      await run(() =>
+        svc.createCompany({ name: 'Acme', registration: { country: 'NO', number: '123456785' } }),
+      );
+      const exported = await run(() => svc.exportCrm());
+      expect(exported.companies[0]).toMatchObject({
+        registrationCountry: 'NO',
+        registrationNumber: '123456785',
+      });
+      const result = await run(() =>
+        svc.importCrm({
+          ...exported,
+          companies: [{ id: 'legacy', name: 'Globex', domain: null, tags: [], customFields: {} }],
+        }),
+      );
+      expect(result.created).toBe(1);
+    });
+  });
+
+  describe('owner membership', () => {
+    it('updateContact accepts an org member as owner and refuses a user from outside the org', async () => {
+      const c = await run(() => svc.createContact({ name: 'A', email: 'a@x' }));
+      const owned = await run(() =>
+        svc.updateContact({ id: c.id, patch: { ownerUserId: memberUserId } }),
+      );
+      expect(owned.ownerUserId).toBe(memberUserId);
+      await expect(
+        run(() => svc.updateContact({ id: c.id, patch: { ownerUserId: outsiderUserId } })),
+      ).rejects.toThrow(/not a member of this org/);
+      const cleared = await run(() => svc.updateContact({ id: c.id, patch: { ownerUserId: null } }));
+      expect(cleared.ownerUserId).toBeNull();
+    });
+
+    it('applyMergeProposal refuses a recommended owner from outside the org', async () => {
+      const a = await run(() => svc.createContact({ name: 'A', email: 'a@x' }));
+      const b = await run(() => svc.createContact({ name: 'A', email: 'a2@x' }));
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: a.id,
+          contactBId: b.id,
+          confidence: 'high',
+          evidence: { reason: 'same name' },
+          recommendedKeeperId: a.id,
+          recommendedPatch: { ownerUserId: outsiderUserId },
+        }),
+      );
+      await expect(
+        run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint })),
+      ).rejects.toThrow(/not a member of this org/);
     });
   });
 

@@ -1229,6 +1229,77 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(trace).toContainEqual({ nodeId: 'welcome', edge: 'on_unseen' });
   });
 
+  it('gives a signed-in visitor without a contact one when they enter, linking an existing contact by attested email instead of duplicating it', async () => {
+    const [chat] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'chat', vendor: 'munin', name: 'journey-chat-signed-in', active: true, config: {} })
+      .returning();
+    const journeyId = await publish(
+      [
+        {
+          id: 'welcome',
+          type: 'message',
+          channel: 'chat',
+          class: 'transactional',
+          approval: 'auto',
+          content: { body: 'Hei {{name|der}}! Rapporten din er klar.' },
+          next: 'done',
+        },
+        done,
+      ],
+      { chatChannelId: chat!.id },
+    );
+    const endUser = async (values: Partial<typeof schema.endUsers.$inferInsert>) => {
+      const [row] = await db.insert(schema.endUsers).values({ orgId, ...values }).returning();
+      return row!.id;
+    };
+    const fresh = await endUser({
+      externalId: `user-${randomUUID()}`,
+      name: 'Kari Nordmann',
+      email: `kari-${randomUUID()}@kunde.test`,
+      metadata: { emailSource: 'org-attested' },
+    });
+    const existingEmail = `ola-${randomUUID()}@kunde.test`;
+    const [unlinked] = await db
+      .insert(schema.crmContacts)
+      .values({ orgId, name: 'Ola Nordmann', email: existingEmail })
+      .returning();
+    const returning = await endUser({
+      externalId: `user-${randomUUID()}`,
+      email: existingEmail,
+      metadata: { emailSource: 'org-attested' },
+    });
+    const anonymous = await endUser({ externalId: `anon:${randomUUID()}` });
+
+    const enter = (endUserId: string) =>
+      asAgent(() => runtime.enroll({ journeyId, subject: { contactId: null, endUserId }, source: { type: 'manual' } }));
+    const freshRun = await enter(fresh);
+    const returningRun = await enter(returning);
+    const anonymousRun = await enter(anonymous);
+    await worker.tick();
+    await worker.tick();
+
+    const [created] = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.endUserId, fresh));
+    expect(created!.name).toBe('Kari Nordmann');
+    expect(created!.email).toMatch(/^kari-/);
+    expect(await enrollment(freshRun.enrollmentId!)).toMatchObject({ contactId: created!.id });
+    const [freshChat] = await proposalsFor(created!.id);
+    expect(freshChat).toMatchObject({ channelId: chat!.id, status: 'sent' });
+
+    const returningContacts = await db
+      .select({ id: schema.crmContacts.id })
+      .from(schema.crmContacts)
+      .where(eq(schema.crmContacts.endUserId, returning));
+    expect(returningContacts).toEqual([{ id: unlinked!.id }]);
+    expect(await enrollment(returningRun.enrollmentId!)).toMatchObject({ contactId: unlinked!.id });
+    expect((await proposalsFor(unlinked!.id))[0]).toMatchObject({ status: 'sent' });
+
+    expect(
+      await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.endUserId, anonymous)),
+    ).toEqual([]);
+    expect(await enrollment(anonymousRun.enrollmentId!)).toMatchObject({ contactId: null, exitReason: 'no_contact' });
+  });
+
   it('refuses chat steps without a chat channel, and seen edges on other channels', async () => {
     const journey = await asAgent(() =>
       journeys.create({

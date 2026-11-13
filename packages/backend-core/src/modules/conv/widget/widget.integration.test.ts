@@ -1319,6 +1319,28 @@ const skipReason = TEST_URL
       expect(endUser?.metadata).toMatchObject({ emailSource: 'org-attested' });
     });
 
+    it('links the CRM contact holding the signed email when the visitor signs in', async () => {
+      const externalId = 'user_signed_email_crm';
+      const [contact] = await db
+        .insert(schema.crmContacts)
+        .values({ orgId, name: 'Kari Nordmann', email: 'Kari.Crm@example.test' })
+        .returning({ id: schema.crmContacts.id });
+      const res = await call('POST', '/v1/widget/identify', signed.widgetKey, {
+        channelId: signed.id,
+        sessionId: 'vis_signed_email_crm',
+        verifiedExternalId: externalId,
+        verifiedEmail: 'kari.crm@example.test',
+        userHash: signedEmailHash(externalId, 'kari.crm@example.test'),
+      });
+      expect(res.status).toBe(201);
+      const { endUserId } = res.json as { endUserId: string };
+      const [linked] = await db
+        .select({ endUserId: schema.crmContacts.endUserId })
+        .from(schema.crmContacts)
+        .where(eq(schema.crmContacts.id, contact!.id));
+      expect(linked!.endUserId).toBe(endUserId);
+    });
+
     it('replaces a visitor-typed email with the signed one', async () => {
       const externalId = 'user_signed_email_2';
       await call('POST', '/v1/widget/messages', signed.widgetKey, {

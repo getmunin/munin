@@ -26,7 +26,11 @@ import {
   type ReviewDecision,
 } from '../../common/review-decision.ts';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
-import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
+import {
+  QUOTAS_SERVICE,
+  QuotaExceededError,
+  type QuotasService,
+} from '../../common/quotas/quotas.service.ts';
 import {
   assertPriorTargetsInOrg,
   newImportResult,
@@ -36,6 +40,7 @@ import {
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import { mergeFingerprint } from './merge-fingerprint.ts';
 import { CrmInvalidError } from './crm.errors.ts';
+import { normalizeRegistration, type CompanyRegistration } from './company-registration.ts';
 import {
   OUTREACH_ELIGIBILITY_FLOOR,
   SEGMENT_EVENT_FILTER_MAX,
@@ -43,6 +48,8 @@ import {
   type SegmentEventFilter,
 } from './segment-filter.ts';
 import { judgeOwnContact } from './own-contact.ts';
+import { contactEmailHeld, linkEndUserContact, trustedEndUserEmail } from './end-user-contact.ts';
+import { isProvisionalIdentity } from '../analytics/visitor-identity.ts';
 import {
   isSelfReportedIdentity,
   SENDER_AUTH_METADATA_KEY,
@@ -127,6 +134,8 @@ export interface CompanyDto {
   id: string;
   name: string;
   domain: string | null;
+  registrationCountry: string | null;
+  registrationNumber: string | null;
   ownerUserId: string | null;
   tags: string[];
   customFields: Record<string, unknown>;
@@ -274,6 +283,8 @@ export interface CrmCompanyExport {
   id: string;
   name: string;
   domain: string | null;
+  registrationCountry?: string | null;
+  registrationNumber?: string | null;
   tags: string[];
   customFields: Record<string, unknown>;
 }
@@ -637,6 +648,37 @@ export class CrmService {
     return held ? null : phone;
   }
 
+  async linkEndUserContact(endUserId: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    return linkEndUserContact(ctx.db, ctx.actor!.orgId, endUserId);
+  }
+
+  async ensureEndUserContact(endUserId: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const linked = await linkEndUserContact(ctx.db, orgId, endUserId);
+    if (linked) return linked;
+    const [endUser] = await ctx.db
+      .select({ externalId: schema.endUsers.externalId, name: schema.endUsers.name })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.id, endUserId)))
+      .limit(1);
+    if (!endUser || isProvisionalIdentity(endUser.externalId)) return null;
+    const email = await trustedEndUserEmail(ctx.db, orgId, endUserId);
+    const usableEmail = email && !(await contactEmailHeld(ctx.db, orgId, email)) ? email : null;
+    try {
+      const created = await this.createContact({
+        endUserId,
+        ...(usableEmail ? { email: usableEmail } : {}),
+        ...(endUser.name?.trim() ? { name: endUser.name.trim() } : {}),
+      });
+      return created.id;
+    } catch (err) {
+      if (err instanceof QuotaExceededError) return null;
+      throw err;
+    }
+  }
+
   async createContact(input: {
     name?: string;
     email?: string;
@@ -746,6 +788,9 @@ export class CrmService {
       }
     }
 
+    if (typeof effectivePatch.ownerUserId === 'string') {
+      await this.assertOrgMember(effectivePatch.ownerUserId);
+    }
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     for (const [k, v] of Object.entries(effectivePatch)) {
       if (v !== undefined) updates[k] = v;
@@ -1027,6 +1072,45 @@ export class CrmService {
     return toCompanyDto(rows[0]);
   }
 
+  private async findCompanyByRegistration(
+    registration: CompanyRegistration,
+  ): Promise<{ id: string; name: string } | null> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ id: schema.crmCompanies.id, name: schema.crmCompanies.name })
+      .from(schema.crmCompanies)
+      .where(
+        and(
+          eq(schema.crmCompanies.registrationCountry, registration.country),
+          eq(schema.crmCompanies.registrationNumber, registration.number),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  private async assertRegistrationFree(
+    registration: CompanyRegistration,
+    exceptCompanyId?: string,
+  ): Promise<void> {
+    const holder = await this.findCompanyByRegistration(registration);
+    if (holder && holder.id !== exceptCompanyId) {
+      throw new ConflictException(
+        `crm_company_registration_conflict: ${registration.country} ${registration.number} is already registered to company ${holder.id} (${holder.name})`,
+      );
+    }
+  }
+
+  private async assertOrgMember(userId: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const [member] = await ctx.db
+      .select({ userId: schema.orgMembers.userId })
+      .from(schema.orgMembers)
+      .where(and(eq(schema.orgMembers.orgId, ctx.actor!.orgId), eq(schema.orgMembers.userId, userId)))
+      .limit(1);
+    if (!member) throw new CrmInvalidError(`owner ${userId} is not a member of this org`);
+  }
+
   async updateCompanyTags(id: string, tags: string[]): Promise<CompanyDto> {
     const ctx = getCurrentContext();
     const [row] = await ctx.db
@@ -1041,17 +1125,25 @@ export class CrmService {
   async createCompany(input: {
     name: string;
     domain?: string;
+    registration?: CompanyRegistration;
+    ownerUserId?: string;
     tags?: string[];
     customFields?: Record<string, unknown>;
   }): Promise<CompanyDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    const registration = input.registration ? normalizeRegistration(input.registration) : null;
+    if (registration) await this.assertRegistrationFree(registration);
+    if (input.ownerUserId) await this.assertOrgMember(input.ownerUserId);
     const [row] = await ctx.db
       .insert(schema.crmCompanies)
       .values({
         orgId: actor.orgId,
         name: input.name,
         domain: input.domain ?? null,
+        registrationCountry: registration?.country ?? null,
+        registrationNumber: registration?.number ?? null,
+        ownerUserId: input.ownerUserId ?? null,
         tags: input.tags ?? [],
         customFields: input.customFields ?? {},
       })
@@ -1676,6 +1768,9 @@ export class CrmService {
       updatedAt: new Date(),
       ...normalizeMergePatch(patch),
     };
+    if (typeof keeperUpdates.ownerUserId === 'string') {
+      await this.assertOrgMember(keeperUpdates.ownerUserId);
+    }
     if (!keeperRow.endUserId && duplicateRow.endUserId) {
       keeperUpdates['endUserId'] = duplicateRow.endUserId;
     }
@@ -1901,6 +1996,8 @@ export class CrmService {
         id: c.id,
         name: c.name,
         domain: c.domain,
+        registrationCountry: c.registrationCountry,
+        registrationNumber: c.registrationNumber,
         tags: c.tags,
         customFields: c.customFields,
       })),
@@ -2005,7 +2102,14 @@ export class CrmService {
     }
 
     for (const company of data.companies) {
-      const existing = await this.findCompanyForImport(company.domain, company.name);
+      const registration =
+        company.registrationCountry && company.registrationNumber
+          ? normalizeRegistration({
+              country: company.registrationCountry,
+              number: company.registrationNumber,
+            })
+          : undefined;
+      const existing = await this.findCompanyForImport(registration, company.domain, company.name);
       if (existing) {
         result.idMap[company.id] = existing.id;
         result.skipped++;
@@ -2013,6 +2117,7 @@ export class CrmService {
         const created = await this.createCompany({
           name: company.name,
           domain: company.domain ?? undefined,
+          registration,
           tags: company.tags,
           customFields: company.customFields,
         });
@@ -2232,10 +2337,15 @@ export class CrmService {
   }
 
   private async findCompanyForImport(
+    registration: CompanyRegistration | undefined,
     domain: string | null,
     name: string,
   ): Promise<{ id: string } | null> {
     const ctx = getCurrentContext();
+    if (registration) {
+      const registered = await this.findCompanyByRegistration(registration);
+      if (registered) return { id: registered.id };
+    }
     const cond = domain
       ? eq(schema.crmCompanies.domain, domain)
       : and(eq(schema.crmCompanies.name, name), sql`${schema.crmCompanies.domain} IS NULL`);
@@ -2488,6 +2598,8 @@ function toCompanyDto(row: typeof schema.crmCompanies.$inferSelect): CompanyDto 
     id: row.id,
     name: row.name,
     domain: row.domain,
+    registrationCountry: row.registrationCountry,
+    registrationNumber: row.registrationNumber,
     ownerUserId: row.ownerUserId,
     tags: row.tags,
     customFields: row.customFields,

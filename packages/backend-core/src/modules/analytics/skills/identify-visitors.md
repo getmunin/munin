@@ -104,6 +104,10 @@ Passing the signed `email` closes that gap in both directions:
 
 One address belongs to one identity per org — enforced by a unique index — so a shared mailbox (`post@firma.no`) resolves to a single `end_users` row no matter how many humans write from it. That is usually what you want for a support inbox, and it is worth knowing before you treat a journey as one person's browsing history.
 
+The signed `email` also finds the person's CRM contact. If a contact holds that address and no identity is linked to it yet, `identify` links it, so `analytics_get_contact_journey`, journeys and journey chat messages all reach the same person. A contact already linked to another identity is left alone. The widget's verified sign-in with a signed email, and a product event (`POST /v1/events`) that sends `externalId` with `email`, link it the same way.
+
+Once a visitor is identified, each of their page views can start or move a journey: it arrives there as `analytics.page.viewed` (see `skill://journeys/build-journey`). Views from anonymous visitors never do.
+
 ## 5. Read the journey
 
 ```jsonc

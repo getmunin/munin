@@ -135,6 +135,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Built import path check
+        run: node scripts/check-dist-imports.mjs
+
   release:
     name: release (changesets)
     runs-on: ubuntu-latest

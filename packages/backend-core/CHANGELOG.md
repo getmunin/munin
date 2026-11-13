@@ -1,5 +1,69 @@
 # @getmunin/backend-core
 
+## 5.53.0
+
+### Minor Changes
+
+- 5b5c344: CRM companies can carry their legal identity: a registration country (ISO 3166 alpha-2) and the number the national business registry issued there. Numbers are normalized before they are stored (spaces, dots and dashes removed; Norway's `NO` prefix and `MVA` suffix, Sweden's VAT form and twelve-digit form, Denmark's and Finland's `DK`/`FI` prefixes stripped; short UK Companies House numbers zero-padded) and the check digit is verified for NO, SE, DK and FI. An org can hold each registration at most once, so creating a second company with the same country and number fails with `crm_company_registration_conflict` naming the company that already holds it. CRM export carries the registration, and import matches an existing company by registration before falling back to domain and name.
+
+  Owner fields now have to name a member of the org. `createCompany` accepts an owner, and setting an owner on a contact (directly or through a merge proposal's recommended patch) that belongs to someone outside the org fails with `crm_invalid` instead of storing a foreign user id.
+
+- cf2d407: New CRM company tools: `crm_get_company` (the company plus its live contact count and open deal count), `crm_search_companies` (name or domain fragment, or an exact registration number), `crm_lookup_companies` (check up to 200 registrations and 200 domains in one call and get back only the ones that already exist, plus any registration that is not a valid number for its country) and `crm_update_company` (partial patch with `fill-null` mode, matching `crm_update_contact`). `crm_create_company` accepts a `registration` and an `ownerUserId`, and `crm_list_companies` filters by tag, owner and `unowned`. Owner fields on company tools accept `"me"` for the signed-in person; a caller with no user, such as an API key, gets `crm_invalid`. Company updates emit the new `crm.company.updated` webhook event with the changed field names. Company events now carry `registrationCountry` and `registrationNumber` (`crm.company.created` also `name`), and `crm.deal.created` and `crm.deal.stage_changed` carry `companyId`, so a receiver outside the org can key companies on their registration. The webhooks skill's deal-stage example now describes the payload as it is (`stageId` and `winLoss`; there are no `fromStage`/`toStage` fields).
+- 1f25916: Journey chat now reaches signed-in people without manual CRM setup, and a page they open can start a journey.
+
+  A signed-in identity is linked to the CRM contact that holds its signed email: on the widget's verified sign-in, on the tracker's `identify`, and when a product event sends `externalId` with `email`. A contact already linked to another identity is left alone. When a signed-in person with no contact enters a person journey, the journey creates one from the sign-in (name and signed email, no lawful basis), so a chat step can write to them. Anonymous visitors still get no contact. When the runtime enters someone from an event or a segment, the contact it creates starts no other journey, because events the runtime raises never start journeys. Before this change, journey chat was skipped with `no_chat_identity` for anyone whose contact had not been linked by hand or through a conversation.
+
+  Page views from identified visitors now reach journeys as `analytics.page.viewed`, with `subjectType`, `subjectId`, `path`, `locale`, `referrer` and the UTM fields under `properties`. They work as an entry trigger, in `wait_for`, as a goal and as an exit; a branch's `{ event }` condition does not see them. To keep page traffic out of the journey inbox, a view is forwarded only when it is newly recorded, comes from a non-anonymous identity, and the org has a live or paused journey whose spec names `analytics.page.viewed` (checked at most once a minute per org). `skill://journeys/build-journey` and `skill://analytics/identify-visitors` describe both changes.
+
+- b6067b8: Review queue: the languages of one CMS entry are now one decision.
+
+  A changelog entry drafted in four languages used to show as four unrelated rows, each approved on its own. The review list now folds every entry that shares a `translation_group_id` into one row, titled in the reviewer's dashboard language (falling back to the default CMS locale, then the oldest entry), with a chip per language that fills in as languages are published. The waiting count in the tab, the sidebar badge and the overview all count that group once.
+
+  The pane gains a language switch, a "Compare with …" view that lines up every field and the slug against the reviewer's language, and a footer of three controls: approve all waiting languages, edit, and a menu. The menu groups the rest by reach: the open language (approve only this one, dismiss it) or every waiting language (schedule all, dismiss all). `⌘↵` approves all; `⇧⌘↵` approves only the open language and moves to the next waiting one. Published, scheduled and dismissed siblings stay visible as context and can be opened, but are never work.
+
+  The CMS preview is now framed in a browser bar that shows the path being previewed.
+
+  Backend:
+
+  - `CmsService.listDraftEntries` attaches `translationGroupId` and `translations` (every sibling's id, locale, status, version and title, plus whether it is the default locale) to each draft. Its limit now applies to translation groups, so a group is never cut in half at the scan boundary.
+  - `publishTranslationGroup`, `scheduleTranslationGroup` and `archiveTranslationGroup` decide every waiting language of a group in one request, with one publish time. The caller sends the `{ id, version }` pairs it was shown; if any language changed, was decided elsewhere, or was drafted after the list loaded, nothing is written and `cms_translations_changed` names the languages. The single-entry approve route still re-reads the entry and cannot detect a stale list.
+  - `POST /v1/cms/drafts/groups/:groupId/{approve,schedule,dismiss}` wrap those methods.
+
+  Scheduled and Decided still list one row per language.
+
+- 5dbb12a: Start a new email conversation with just an address. `conv_start_email_conversation` (and `POST /v1/conversations/email`) opens a fresh thread from one of the org's email channels, reusing the contact for that address or creating one. Before, the only way to email someone first was an outreach campaign.
+
+  Who calls it decides whether mail goes out. When a signed-in person calls it, the message is sent right away (`delivery: "queued"`). When an agent calls it, the message is stored as a draft on the new conversation and sent only once a person approves it in the inbox (`delivery: "awaiting_approval"`). This holds even on channels set to `auto`: that mode lets an agent answer people who wrote in, not write to any address it chooses. An address whose CRM contact is marked do-not-contact, or whose mail is known to bounce, is refused. When the org has more than one active email channel, `channelId` is required. The route is limited to owners, admins and admin keys with `conv:write`.
+
+  `ConvService.createConversation` takes a new `firstMessageAsDraft` flag. It stores the opening message as a `draft_reply` instead of queuing delivery. The new `skill://conv/start-email-conversation` describes how agents should use the tool.
+
+- ae0ae20: A take-over now holds a conversation until someone releases it, closes it or marks it spam, or another teammate takes it over. It used to lapse after 30 minutes: an operator would take over from Slack or the dashboard, ask the customer for photos, and when the customer answered an hour later the AI replied to them and paged for a handover nobody needed.
+
+  `claims.expires_at` is now nullable (migration `0144_claims_held_until_released`), and null means "held until released". The dashboard's _Take over_ button, the Slack _Take over_ button and `POST /v1/conversations/:id/take-over` without `ttlMinutes` all create an open-ended hold. `ttlMinutes` still sets a timed claim. The implicit claim a user reply makes when nobody has taken over keeps its 30-minute window, now exported as `REPLY_CLAIM_TTL_MS`. Replying under a take-over no longer shortens the hold to that window.
+
+  Type-level break: `expiresAt` on the claim DTOs (`GET /v1/conversations/:id`, the queue's `claim`, the take-over response), the `conversation.taken_over` webhook payload and `@getmunin/agent-runtime`'s `ConversationDetail.claim` is now `string | null`. Every reader of active claims goes through the new `claimIsActive()` predicate, so an open-ended hold counts in the inbox, roster, queue ordering and Slack status line.
+
+### Patch Changes
+
+- a473a7d: The lead-import and customer-onboarding skills (and the support-desk-launch playbook) now find existing companies with one `crm_lookup_companies` call, by business registration or domain, before creating any, and pass the registration to `crm_create_company`. The onboarding skill also stops claiming that `crm_create_company` dedupes by domain, and its examples now use the real argument shapes: `patch.companyId` on `crm_update_contact`, `customFields` instead of `metadata` on contacts, a valid activity type, and `entityType` + `id` on `crm_set_ai_summary`.
+
+  New skill `skill://crm/find-daily-prospects`: a seller's daily short list of companies in their territory that fit the org's ideal customer profile, each with a dated reason to call. Candidates come from company-data sources connected alongside Munin; one `crm_lookup_companies` call drops every company the CRM already knows, and the picks are stored as companies owned by the seller with a deal and the reason as the AI summary, so the next run never repeats them. It also sets the convention for a turned-down prospect: a `disqualified` tag with `prospectDisqualifiedReason` and an optional `prospectRetryAfter` date.
+
+- 99eb7fd: Fix journey email sends, test sends and publishing for journeys with several auto email steps. The built package imported `email-template-render.ts` from `JourneyOutboxService` and `JourneySimulator`, so every journey email send and `journeys_send_test` failed with "Cannot find module". `tsc` does not rewrite `import()` paths inside a class with class-level or constructor-parameter decorators, so these are now static imports, as is the one in the template hash check. A lint rule blocks the pattern, and the build output is now checked for relative TypeScript import paths before release. The email renderer loads `mjml` on first render rather than at startup. Confirming a publish also always failed with `journeys_conflict` when two or more email steps were set to `approval: "auto"`, because the check compared the pinned templates in a key order that Postgres jsonb does not keep.
+
+  Journey emails that failed while the import was broken (5.49.0 to 5.52.1) are not resent by this release: their proposals stay `failed` and their enrollments stay exited with `message_failed`. `journeys_list_enrollments` with `state: "exited"` lists who was affected, per journey.
+
+- Updated dependencies [5b5c344]
+- Updated dependencies [cf2d407]
+- Updated dependencies [ae0ae20]
+  - @getmunin/db@5.53.0
+  - @getmunin/types@5.53.0
+  - @getmunin/agent-runtime@5.53.0
+  - @getmunin/core@5.53.0
+  - @getmunin/inspector-app@5.53.0
+  - @getmunin/mcp-toolkit@5.53.0
+  - @getmunin/emails@5.53.0
+
 ## 5.52.1
 
 ### Patch Changes

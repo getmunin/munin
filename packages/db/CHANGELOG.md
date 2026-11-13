@@ -1,5 +1,24 @@
 # @getmunin/db
 
+## 5.53.0
+
+### Minor Changes
+
+- 5b5c344: CRM companies can carry their legal identity: a registration country (ISO 3166 alpha-2) and the number the national business registry issued there. Numbers are normalized before they are stored (spaces, dots and dashes removed; Norway's `NO` prefix and `MVA` suffix, Sweden's VAT form and twelve-digit form, Denmark's and Finland's `DK`/`FI` prefixes stripped; short UK Companies House numbers zero-padded) and the check digit is verified for NO, SE, DK and FI. An org can hold each registration at most once, so creating a second company with the same country and number fails with `crm_company_registration_conflict` naming the company that already holds it. CRM export carries the registration, and import matches an existing company by registration before falling back to domain and name.
+
+  Owner fields now have to name a member of the org. `createCompany` accepts an owner, and setting an owner on a contact (directly or through a merge proposal's recommended patch) that belongs to someone outside the org fails with `crm_invalid` instead of storing a foreign user id.
+
+- ae0ae20: A take-over now holds a conversation until someone releases it, closes it or marks it spam, or another teammate takes it over. It used to lapse after 30 minutes: an operator would take over from Slack or the dashboard, ask the customer for photos, and when the customer answered an hour later the AI replied to them and paged for a handover nobody needed.
+
+  `claims.expires_at` is now nullable (migration `0144_claims_held_until_released`), and null means "held until released". The dashboard's _Take over_ button, the Slack _Take over_ button and `POST /v1/conversations/:id/take-over` without `ttlMinutes` all create an open-ended hold. `ttlMinutes` still sets a timed claim. The implicit claim a user reply makes when nobody has taken over keeps its 30-minute window, now exported as `REPLY_CLAIM_TTL_MS`. Replying under a take-over no longer shortens the hold to that window.
+
+  Type-level break: `expiresAt` on the claim DTOs (`GET /v1/conversations/:id`, the queue's `claim`, the take-over response), the `conversation.taken_over` webhook payload and `@getmunin/agent-runtime`'s `ConversationDetail.claim` is now `string | null`. Every reader of active claims goes through the new `claimIsActive()` predicate, so an open-ended hold counts in the inbox, roster, queue ordering and Slack status line.
+
+### Patch Changes
+
+- Updated dependencies [cf2d407]
+  - @getmunin/types@5.53.0
+
 ## 5.52.1
 
 ### Patch Changes

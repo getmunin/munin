@@ -1,4 +1,3 @@
-import mjml2html from 'mjml';
 import { renderMarkdownToHtml } from '../conv/email/markdown.ts';
 import { htmlToText } from '../conv/email/html-text.ts';
 import { OutreachInvalidError } from './outreach.service.ts';
@@ -109,6 +108,7 @@ async function compileDocument(
 
   let html: string;
   try {
+    const { default: mjml2html } = await import('mjml');
     const result = await mjml2html(document, {
       validationLevel: 'strict',
       ignoreIncludes: true,

@@ -383,7 +383,7 @@ export class JourneyPublishingService {
     }
     const spec = JourneySpecSchema.parse(row.spec);
     const pinned = await autoTemplateHashes(spec);
-    if (!samePins(pinned, row.pinnedTemplates)) {
+    if (hashSpec(pinned) !== hashSpec(row.pinnedTemplates)) {
       throw new ConflictException(
         `journeys_conflict: an email template used by an auto step changed after the publish review was prepared — request publish again and review it`,
       );
@@ -748,11 +748,6 @@ export function publishFingerprint(
     Object.entries(templates).sort(([a], [b]) => a.localeCompare(b)),
   ]);
   return createHash('sha256').update(canonical, 'utf8').digest('hex').slice(0, 32);
-}
-
-export function samePins(a: Record<string, string>, b: Record<string, string>): boolean {
-  const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length && keys.every((k) => Object.hasOwn(b, k) && a[k] === b[k]);
 }
 
 async function autoTemplateHashes(spec: JourneySpec): Promise<Record<string, string>> {

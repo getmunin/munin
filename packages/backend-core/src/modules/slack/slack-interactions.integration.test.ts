@@ -272,7 +272,7 @@ class FakeSlackApi extends SlackApiClient {
     return row!;
   }
 
-  it('claim button claims the conversation as the mapped member and mirrors the event', async () => {
+  it('claim button claims the conversation as the mapped member, holds it until released, and mirrors the event', async () => {
     await interactions.processBlockActions(actionPayload('munin_claim'));
 
     const [claim] = await db
@@ -280,6 +280,7 @@ class FakeSlackApi extends SlackApiClient {
       .from(schema.claims)
       .where(and(eq(schema.claims.entityType, 'conversation'), eq(schema.claims.entityId, conversationId)));
     expect(claim?.userId).toBe(memberUserId);
+    expect(claim?.expiresAt).toBeNull();
 
     const deliveries = await db
       .select({ eventType: schema.slackDeliveries.eventType })

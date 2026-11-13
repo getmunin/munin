@@ -201,14 +201,14 @@ const skipReason = TEST_URL
     expect(detail.body.claim).toBeNull();
     expect(detail.body.channelType).toBe('chat');
 
-    const claim = await rest<{ holderType: string; holderId: string; expiresAt: string }>(
+    const claim = await rest<{ holderType: string; holderId: string; expiresAt: string | null }>(
       adminKeyA,
       'POST',
       `/v1/conversations/${started.id}/take-over`,
       {},
     );
     expect(claim.status).toBe(200);
-    expect(claim.body.expiresAt).toBeTruthy();
+    expect(claim.body.expiresAt).toBeNull();
     expect(claim.body.holderType).toBe('user');
     expect(claim.body.holderId).toBe(adminUserAId);
 

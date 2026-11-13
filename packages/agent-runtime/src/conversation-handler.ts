@@ -269,7 +269,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       return null;
     }
     if (delivery === 'send' && detail.claim && detail.claim.holderType === 'user') {
-      log.info(`skip ${detail.id}: claimed by ${detail.claim.holderId} until ${detail.claim.expiresAt}`);
+      log.info(`skip ${detail.id}: claimed by ${detail.claim.holderId} until ${detail.claim.expiresAt ?? 'released'}`);
       return null;
     }
     if (!detail.endUserId) {

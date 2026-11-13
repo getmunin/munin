@@ -29,7 +29,7 @@ export interface ConversationDetail {
   claim: {
     holderType: 'user';
     holderId: string;
-    expiresAt: string;
+    expiresAt: string | null;
   } | null;
   agentMode?: 'auto' | 'draft_only' | 'off';
   voiceActive?: boolean;

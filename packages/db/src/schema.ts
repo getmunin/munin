@@ -559,7 +559,7 @@ export const claims = pgTable(
     entityType: text('entity_type').notNull(),
     entityId: text('entity_id').notNull(),
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
     createdAt,
   },

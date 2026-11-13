@@ -23,7 +23,7 @@ import { markConversationEngaged } from './conversation-engagement.ts';
 import { effectiveAgentModeSql, topicUneditedPctSql } from './topic-auto-gate.ts';
 import { buildDeltaCurationPrompt, buildGapCurationPrompt } from './curation-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
-import { ConversationClaimsService } from './conv.claims.service.ts';
+import { claimIsActive, ConversationClaimsService, REPLY_CLAIM_TTL_MS } from './conv.claims.service.ts';
 import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
 import type {
   HydratedMessageAttachment,
@@ -233,7 +233,7 @@ export interface ConversationQueueItem extends ConversationSummary {
   topicName: string | null;
   topicSlug: string | null;
   topicAgentMode: AgentMode | null;
-  claim: { holderId: string; holderName: string | null; expiresAt: string } | null;
+  claim: { holderId: string; holderName: string | null; expiresAt: string | null } | null;
   hasPendingDraft: boolean;
   endUserSpokeLast: boolean;
   agentWorking: boolean;
@@ -865,7 +865,7 @@ export class ConvService {
 
     const claimByConversation = new Map<
       string,
-      { holderId: string; holderName: string | null; expiresAt: string }
+      { holderId: string; holderName: string | null; expiresAt: string | null }
     >();
     const statsByConversation = new Map<string, { pendingDrafts: number }>();
     const translatedSubjects = new Map<string, string>();
@@ -906,7 +906,7 @@ export class ConvService {
           and(
             eq(schema.claims.entityType, 'conversation'),
             inArray(schema.claims.entityId, pageIds),
-            sql`${schema.claims.expiresAt} > now()`,
+            claimIsActive(),
           ),
         )
         .orderBy(desc(schema.claims.createdAt));
@@ -915,7 +915,7 @@ export class ConvService {
         claimByConversation.set(row.entityId, {
           holderId: row.userId,
           holderName: row.holderName,
-          expiresAt: row.expiresAt.toISOString(),
+          expiresAt: row.expiresAt?.toISOString() ?? null,
         });
       }
 
@@ -982,7 +982,7 @@ export class ConvService {
           WHERE ${schema.claims.entityType} = 'conversation'
             AND ${schema.claims.entityId} = ${schema.convConversations.id}
             AND ${schema.claims.userId} IS NOT NULL
-            AND ${schema.claims.expiresAt} > now()
+            AND ${claimIsActive()}
           ORDER BY ${schema.claims.createdAt} DESC
           LIMIT 1
         )`;
@@ -1791,7 +1791,7 @@ export class ConvService {
       input.claim !== false
     ) {
       try {
-        await this.claims.claim({ conversationId: input.conversationId });
+        await this.claims.claim({ conversationId: input.conversationId, ttlMs: REPLY_CLAIM_TTL_MS });
       } catch (err) {
         if (!(err instanceof Error && err.message.includes('claim_held_by_other'))) {
           throw err;

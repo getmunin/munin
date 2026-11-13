@@ -1016,6 +1016,13 @@
       "when": 1793134590267,
       "tag": "0144_crm_company_registration",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1793134650267,
+      "tag": "0145_claims_held_until_released",
+      "breakpoints": true
     }
   ]
 }

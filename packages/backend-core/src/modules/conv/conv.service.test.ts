@@ -10,7 +10,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ConvService, ConvInvalidError } from './conv.service.ts';
-import { ConversationClaimsService } from './conv.claims.service.ts';
+import { ConversationClaimsService, REPLY_CLAIM_TTL_MS } from './conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { stubAttachmentGateway } from './attachments/conv-attachments.test-stub.ts';
@@ -1304,6 +1304,74 @@ const skipReason = TEST_URL
         svc.requestHandover({ conversationId: conv.id, reason: 'customs question' }),
       );
       expect(afterRelease.needsHumanAttention).toBe(true);
+    });
+
+    it('a take-over holds the conversation until released, so a customer reply hours later still finds the agent locked out', async () => {
+      const { conv } = await seedQueueConversation();
+      const taken = await run(() => claims.claim({ conversationId: conv.id }), userActor());
+      expect(taken.expiresAt).toBeNull();
+
+      await db.execute(
+        sql`UPDATE claims SET created_at = now() - interval '3 hours' WHERE entity_id = ${conv.id}`,
+      );
+      await expect(
+        run(() =>
+          svc.sendMessage({
+            conversationId: conv.id,
+            body: 'Thanks for the photos.',
+            authorType: 'agent',
+            authorId: 'agt_followup',
+          }),
+        ),
+      ).rejects.toThrow('handover_active');
+      const handover = await run(() =>
+        svc.requestHandover({ conversationId: conv.id, reason: 'defers to a human' }),
+      );
+      expect(handover.needsHumanAttention).toBe(false);
+
+      await run(() => claims.release({ conversationId: conv.id }), userActor());
+      expect(await run(() => claims.getActiveClaim(conv.id))).toBeNull();
+    });
+
+    it('replying under a take-over keeps the hold instead of shortening it to the reply window', async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() => claims.claim({ conversationId: conv.id }), userActor());
+      await run(
+        () =>
+          svc.sendMessage({
+            conversationId: conv.id,
+            body: 'Could you send a photo of the frame?',
+            authorType: 'user',
+            authorId: userId,
+          }),
+        userActor(),
+      );
+      const claim = await run(() => claims.getActiveClaim(conv.id));
+      expect(claim?.expiresAt).toBeNull();
+    });
+
+    it('a reply without a take-over claims only for the reply window', async () => {
+      const { conv } = await seedQueueConversation();
+      const before = Date.now();
+      await run(
+        () =>
+          svc.sendMessage({
+            conversationId: conv.id,
+            body: 'Looking into it.',
+            authorType: 'user',
+            authorId: userId,
+          }),
+        userActor(),
+      );
+      const claim = await run(() => claims.getActiveClaim(conv.id));
+      const expiresAt = Date.parse(claim!.expiresAt!);
+      expect(expiresAt).toBeGreaterThanOrEqual(before + REPLY_CLAIM_TTL_MS);
+      expect(expiresAt).toBeLessThan(before + REPLY_CLAIM_TTL_MS + 60_000);
+
+      await db.execute(
+        sql`UPDATE claims SET expires_at = now() - interval '1 minute' WHERE entity_id = ${conv.id}`,
+      );
+      expect(await run(() => claims.getActiveClaim(conv.id))).toBeNull();
     });
 
     it('clearDraftReply stamps draft_reply_rejected with the rejecting user instead of deleting', async () => {

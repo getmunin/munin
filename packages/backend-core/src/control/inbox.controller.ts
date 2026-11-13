@@ -1,6 +1,6 @@
 import { Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, desc, eq, gt, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -8,6 +8,7 @@ import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { ConvService, type ConversationSummary } from '../modules/conv/conv.service.ts';
 import {
+  claimIsActive,
   ConversationClaimsService,
   type ConversationClaim,
 } from '../modules/conv/conv.claims.service.ts';
@@ -63,7 +64,7 @@ export class InboxController {
         and(
           eq(schema.claims.entityType, 'conversation'),
           isNotNull(schema.claims.userId),
-          gt(schema.claims.expiresAt, sql`now()`),
+          claimIsActive(),
         ),
       );
     const claimedIds = [...new Set(claimedIdRows.map((r) => r.id))];

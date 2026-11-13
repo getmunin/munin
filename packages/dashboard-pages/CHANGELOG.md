@@ -1,5 +1,29 @@
 # @getmunin/dashboard-pages
 
+## 5.54.0
+
+### Minor Changes
+
+- 3f1fad2: Spam stays out of the inbox unless you ask for it. The unfiltered inbox already hid spam, but the moment you searched or set any filter, such as a channel, spam conversations came back mixed into the results. The filter panel still read "Any status" and "Any origin" over a list that left them out, so picking "Known junk senders" revealed conversations that "Any origin" had not shown.
+
+  Now a search or filter leaves spam out as long as the status filter is at its default, and that default is labelled "All except spam". Choosing the status "Spam" shows it. Picking the origin "Known junk senders" sets the status to "Spam" as well, so the filter receipt shows both and it is clear why spam is on screen.
+
+  `GET /v1/conversations` and `GET /v1/conversations/queue` take a new `excludeStatus` parameter, one conversation status to leave out of the results. An unknown value is refused with `conv_invalid`. `conv_list_conversations` is unchanged.
+
+### Patch Changes
+
+- 3748c97: Social post and CMS entry reviews now share one preview look. The social preview sits in the same full-width backdrop and browser-style frame as the CMS preview, with a top bar naming where the post goes and who it goes out as ("LinkedIn · as Acme") instead of a URL. The post itself stays light, as the platform shows it, inside a frame that follows the dashboard theme.
+
+  The social pane's caveats are now proper notices: the publish warning ("Munin cannot take it back") and the notes about where the picture comes from sit above the preview, and a linked page that couldn't be read gets a warning notice and a dot on the Preview tab, as a failed CMS preview does. The publish warning now names the platform properly ("LinkedIn", not "linkedin").
+
+  On the Review page on mobile, a social draft's header now collapses like every other item's instead of taking up the top of the screen.
+
+  The CMS pane's footer now uses the shared footer layout every other review pane uses, and its field values and editors use the same text size as the other panes.
+
+- Updated dependencies [a14957e]
+  - @getmunin/ui@5.54.0
+  - @getmunin/types@5.54.0
+
 ## 5.53.0
 
 ### Minor Changes

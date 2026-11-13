@@ -1,5 +1,26 @@
 # @getmunin/backend-core
 
+## 5.54.0
+
+### Minor Changes
+
+- 3f1fad2: Spam stays out of the inbox unless you ask for it. The unfiltered inbox already hid spam, but the moment you searched or set any filter, such as a channel, spam conversations came back mixed into the results. The filter panel still read "Any status" and "Any origin" over a list that left them out, so picking "Known junk senders" revealed conversations that "Any origin" had not shown.
+
+  Now a search or filter leaves spam out as long as the status filter is at its default, and that default is labelled "All except spam". Choosing the status "Spam" shows it. Picking the origin "Known junk senders" sets the status to "Spam" as well, so the filter receipt shows both and it is clear why spam is on screen.
+
+  `GET /v1/conversations` and `GET /v1/conversations/queue` take a new `excludeStatus` parameter, one conversation status to leave out of the results. An unknown value is refused with `conv_invalid`. `conv_list_conversations` is unchanged.
+
+### Patch Changes
+
+- 07e6d79: A voice call started from the chat widget now greets the caller in the widget's language. The widget's locale was stored on the conversation but never reached the voice agent, so when the visitor had not typed anything yet the agent guessed a language from the company context — a Swedish widget could open a call in Norwegian. The voice system prompt for widget calls (Threll and Vapi) now carries a `[Language]` block naming the widget locale; the agent still switches if the caller's own messages or speech are in another language. Missing or unrecognised locales add nothing.
+- @getmunin/inspector-app@5.54.0
+  - @getmunin/agent-runtime@5.54.0
+  - @getmunin/core@5.54.0
+  - @getmunin/db@5.54.0
+  - @getmunin/emails@5.54.0
+  - @getmunin/mcp-toolkit@5.54.0
+  - @getmunin/types@5.54.0
+
 ## 5.53.0
 
 ### Minor Changes

@@ -2117,7 +2117,7 @@
           "removeFilter": "Fjern filteret for {dimension}",
           "status": "Status",
           "statusOption": {
-            "any": "Alle statuser",
+            "any": "Alle unntatt søppelpost",
             "open": "Åpne",
             "snoozed": "Utsatte",
             "closed": "Lukkede",

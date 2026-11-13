@@ -128,6 +128,11 @@ interface QueuePage {
     await seed('body', { subject: 'Nothing to see' }, 'The invoice mentions a refinancing fee');
     await seed('closed', { subject: 'Payslip archive', status: 'closed' });
     await seed('wildcard', { subject: '100% of the fee was refunded' });
+    await seed('spam', {
+      subject: 'Lottery winnings waiting',
+      status: 'spam',
+      suppressedReason: 'spam_sender',
+    });
     await seed(
       'internalOnly',
       { subject: 'Nothing to see' },
@@ -204,6 +209,23 @@ interface QueuePage {
     expect(all).toContain(ids['subject']);
     expect(all).toContain(ids['closed']);
     expect(await search('payslip', '&status=closed')).toEqual([ids['closed']]);
+  });
+
+  it('drops spam from the results when asked to exclude it, and only then', async () => {
+    expect(await search('lottery')).toEqual([ids['spam']]);
+    expect(await search('lottery', '&excludeStatus=spam')).toEqual([]);
+    expect(await search('lottery', '&suppressedReason=spam_sender&excludeStatus=spam')).toEqual([]);
+    expect(await search('lottery', '&status=spam&suppressedReason=spam_sender')).toEqual([
+      ids['spam'],
+    ]);
+    expect(await search('payslip', '&excludeStatus=spam')).toHaveLength(2);
+  });
+
+  it('rejects an excludeStatus that is not a conversation status', async () => {
+    const res = await fetch(`${baseUrl}/v1/conversations/queue?excludeStatus=junk`, {
+      headers: { Cookie: `better-auth.session_token=${sessionToken}.placeholder-sig` },
+    });
+    expect(res.status).toBe(400);
   });
 
   it('matches the conversation number, with or without the hash', async () => {

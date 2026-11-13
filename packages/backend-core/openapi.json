@@ -5667,6 +5667,14 @@
             }
           },
           {
+            "name": "excludeStatus",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "assigneeUserId",
             "required": true,
             "in": "query",
@@ -5763,6 +5771,14 @@
         "parameters": [
           {
             "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "excludeStatus",
             "required": true,
             "in": "query",
             "schema": {

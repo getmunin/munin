@@ -11,6 +11,7 @@ import {
   QUEUE_SINCE_FILTERS,
   QUEUE_STATUS_FILTERS,
   activeQueueFilterCount,
+  withQueueOrigin,
   type QueueChannelFilter,
   type QueueFilters,
   type QueueOriginFilter,
@@ -175,7 +176,7 @@ export function ConversationFiltersPanel({
           <NativeSelect
             className={FIELD_CLASS}
             value={filters.origin}
-            onChange={(e) => set('origin', e.target.value as QueueOriginFilter)}
+            onChange={(e) => onChange(withQueueOrigin(filters, e.target.value as QueueOriginFilter))}
           >
             {QUEUE_ORIGIN_FILTERS.map((value) => (
               <option key={value} value={value}>

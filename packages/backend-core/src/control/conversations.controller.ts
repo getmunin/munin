@@ -248,6 +248,7 @@ export class ConversationsController {
   @AdmitAdminKeyScope('conv:read')
   async list(
     @Query('status') status?: string,
+    @Query('excludeStatus') excludeStatus?: string,
     @Query('assigneeUserId') assigneeUserId?: string,
     @Query('topicId') topicId?: string,
     @Query('needsHumanAttention') needsHumanAttention?: string,
@@ -260,6 +261,7 @@ export class ConversationsController {
   ): Promise<ConversationListResponse> {
     const query = parseListQuery({
       status,
+      excludeStatus,
       needsHumanAttention,
       suppressedReason,
       channelType,
@@ -282,6 +284,7 @@ export class ConversationsController {
   @AdmitAdminKeyScope('conv:read')
   async queue(
     @Query('status') status?: string,
+    @Query('excludeStatus') excludeStatus?: string,
     @Query('assigneeUserId') assigneeUserId?: string,
     @Query('topicId') topicId?: string,
     @Query('needsHumanAttention') needsHumanAttention?: string,
@@ -295,6 +298,7 @@ export class ConversationsController {
   ): Promise<ConversationQueueResponse> {
     const query = parseListQuery({
       status,
+      excludeStatus,
       needsHumanAttention,
       suppressedReason,
       channelType,
@@ -810,6 +814,7 @@ function decodeListCursor(raw: string): ListCursor | undefined {
 
 function parseListQuery(input: {
   status?: string;
+  excludeStatus?: string;
   needsHumanAttention?: string;
   suppressedReason?: string;
   channelType?: string;
@@ -819,6 +824,7 @@ function parseListQuery(input: {
   limit?: string;
 }): {
   status: ConversationStatus | undefined;
+  excludeStatuses: ConversationStatus[] | undefined;
   needsHumanAttention: boolean | undefined;
   suppressedReason: SuppressedReasonFilter | undefined;
   channelType: ChannelType | undefined;
@@ -830,6 +836,10 @@ function parseListQuery(input: {
   const parsedStatus = input.status ? StatusSchema.safeParse(input.status) : null;
   if (parsedStatus && !parsedStatus.success) {
     throw new BadRequestException(`conv_invalid: invalid status: ${input.status}`);
+  }
+  const parsedExclude = input.excludeStatus ? StatusSchema.safeParse(input.excludeStatus) : null;
+  if (parsedExclude && !parsedExclude.success) {
+    throw new BadRequestException(`conv_invalid: invalid excludeStatus: ${input.excludeStatus}`);
   }
   const parsedSuppressed = input.suppressedReason
     ? SuppressedReasonFilterSchema.safeParse(input.suppressedReason)
@@ -850,6 +860,7 @@ function parseListQuery(input: {
   }
   return {
     status: parsedStatus?.success ? parsedStatus.data : undefined,
+    excludeStatuses: parsedExclude?.success ? [parsedExclude.data] : undefined,
     needsHumanAttention: parseBool(input.needsHumanAttention),
     suppressedReason: parsedSuppressed?.success ? parsedSuppressed.data : undefined,
     channelType: parsedChannelType?.success ? parsedChannelType.data : undefined,

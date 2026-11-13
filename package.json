@@ -22,7 +22,7 @@
     "licenses:generate": "node scripts/licenses.mjs generate",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm -r --filter '@getmunin/*' --filter '!@getmunin/eslint-config' --filter '!@getmunin/tsconfig' --filter '!@getmunin/backend' --filter '!@getmunin/web' build && changeset publish",
+    "release": "pnpm -r --filter '@getmunin/*' --filter '!@getmunin/eslint-config' --filter '!@getmunin/tsconfig' --filter '!@getmunin/backend' --filter '!@getmunin/web' build && node scripts/check-dist-imports.mjs && changeset publish",
     "prepare": "husky"
   },
   "devDependencies": {

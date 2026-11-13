@@ -1265,7 +1265,12 @@ export class CrmService {
       .returning();
     await this.webhooks.emit({
       type: 'crm.company.updated',
-      payload: { companyId: existing.id, fields },
+      payload: {
+        companyId: existing.id,
+        fields,
+        registrationCountry: row!.registrationCountry,
+        registrationNumber: row!.registrationNumber,
+      },
     });
     return toCompanyDto(row!);
   }
@@ -1371,7 +1376,13 @@ export class CrmService {
       .returning();
     await this.webhooks.emit({
       type: 'crm.company.created',
-      payload: { companyId: row!.id, domain: row!.domain },
+      payload: {
+        companyId: row!.id,
+        name: row!.name,
+        domain: row!.domain,
+        registrationCountry: row!.registrationCountry,
+        registrationNumber: row!.registrationNumber,
+      },
     });
     return toCompanyDto(row!);
   }
@@ -1507,6 +1518,7 @@ export class CrmService {
         stageId: row!.stageId,
         amountCents: row!.amountCents,
         contactId: row!.primaryContactId ?? null,
+        companyId: row!.companyId ?? null,
       },
     });
     return toDealDto(row!);
@@ -1541,6 +1553,7 @@ export class CrmService {
         winLoss: stage.winLoss,
         closedAt: result[0].closedAt?.toISOString() ?? null,
         contactId: result[0].primaryContactId ?? null,
+        companyId: result[0].companyId ?? null,
       },
     });
     return toDealDto(result[0]);

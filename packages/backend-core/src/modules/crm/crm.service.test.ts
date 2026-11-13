@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { ActorIdentity, withContext, WebhookDispatcher, type RequestContext } from '@getmunin/core';
+import {
+  ActorIdentity,
+  withContext,
+  WebhookDispatcher,
+  type EmittedEvent,
+  type RequestContext,
+} from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -526,6 +532,58 @@ const skipReason = TEST_URL
       await expect(
         run(() => svc.updateCompany({ id: randomUUID(), patch: { name: 'X' } })),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('company and deal events carry the registration and company id a partner feed needs', async () => {
+      const events: EmittedEvent[] = [];
+      const dispatcher = new WebhookDispatcher();
+      dispatcher.registerSink({
+        onEvent: (event) => {
+          events.push(event);
+          return Promise.resolve();
+        },
+      });
+      const recording = new CrmService(
+        dispatcher,
+        new DefaultQuotasService(),
+        new AddressDeliverabilityService(),
+      );
+      const co = await run(() =>
+        recording.createCompany({
+          name: 'Acme',
+          domain: 'acme.example',
+          registration: { country: 'NO', number: '123 456 785' },
+        }),
+      );
+      await run(() => recording.updateCompany({ id: co.id, patch: { tags: ['prospect'] } }));
+      const pipeline = await run(() =>
+        recording.createPipeline({
+          name: 'Partner',
+          slug: 'partner',
+          stages: [{ name: 'New' }, { name: 'Meeting booked' }],
+        }),
+      );
+      const deal = await run(() =>
+        recording.createDeal({ name: 'Acme', pipelineId: pipeline.id, companyId: co.id }),
+      );
+      await run(() => recording.changeStage({ dealId: deal.id, stageId: pipeline.stages[1]!.id }));
+
+      const payloadOf = (type: string) => events.find((e) => e.type === type)?.payload;
+      expect(payloadOf('crm.company.created')).toEqual({
+        companyId: co.id,
+        name: 'Acme',
+        domain: 'acme.example',
+        registrationCountry: 'NO',
+        registrationNumber: '123456785',
+      });
+      expect(payloadOf('crm.company.updated')).toEqual({
+        companyId: co.id,
+        fields: ['tags'],
+        registrationCountry: 'NO',
+        registrationNumber: '123456785',
+      });
+      expect(payloadOf('crm.deal.created')).toMatchObject({ dealId: deal.id, companyId: co.id });
+      expect(payloadOf('crm.deal.stage_changed')).toMatchObject({ dealId: deal.id, companyId: co.id });
     });
 
     it('updateCompany in fill-null mode only fills empty fields', async () => {

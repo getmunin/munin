@@ -8,7 +8,8 @@ import { stableBucket } from './journey-time.ts';
 import { JourneyRuntimeService } from './journey-runtime.service.ts';
 import { checkSendPolicy } from '../outreach/send-policy.ts';
 import { personalizeLine, personalizeText, type MergeValues } from '../outreach/merge-fields.ts';
-import { BUILT_IN_EMAIL_TEMPLATE, renderEmail } from '../outreach/email-template-render.ts';
+import { renderEmail } from '../outreach/email-template-render.ts';
+import { emailTemplateMjml } from '../outreach/email-template-source.ts';
 
 const MAX_STEPS = 100;
 
@@ -396,12 +397,12 @@ export class JourneySimulator {
     opts: { unsubscribeUrl?: string } = {},
   ): Promise<{ html: string; text: string; subject: string }> {
     const ctx = getCurrentContext();
-    const t = schema.outreachEmailTemplates;
-    const [template] = await ctx.db
-      .select({ mjml: t.mjml })
-      .from(t)
-      .where(node.content.templateId ? eq(t.id, node.content.templateId) : and(eq(t.orgId, ctx.actor!.orgId), eq(t.isDefault, true)))
-      .limit(1);
+    const mjml = await emailTemplateMjml(node.content.templateId ?? null);
+    if (mjml === null) {
+      throw new BadRequestException(
+        `journeys_invalid: email template ${node.content.templateId} used by "${node.id}" does not exist`,
+      );
+    }
     const [org] = await ctx.db
       .select({ name: schema.orgs.name })
       .from(schema.orgs)
@@ -410,7 +411,7 @@ export class JourneySimulator {
     const merge = { ...mergeValuesFor(contact), orgName: org?.name ?? null };
     const subject = personalizeLine(node.content.subject ?? '', merge);
     const rendered = await renderEmail(
-      template?.mjml ?? BUILT_IN_EMAIL_TEMPLATE,
+      mjml,
       { format: node.content.format, body: node.content.body },
       {
         ...merge,

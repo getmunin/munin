@@ -1,18 +1,8 @@
 import { createHash } from 'node:crypto';
-import { schema } from '@getmunin/db';
-import { and, eq } from 'drizzle-orm';
-import { getCurrentContext } from '@getmunin/core';
-import { BUILT_IN_EMAIL_TEMPLATE } from './email-template-render.ts';
+import { emailTemplateMjml } from './email-template-source.ts';
 
 export async function emailTemplateHash(templateId: string | null): Promise<string | null> {
-  const ctx = getCurrentContext();
-  const t = schema.outreachEmailTemplates;
-  const [row] = await ctx.db
-    .select({ mjml: t.mjml })
-    .from(t)
-    .where(templateId ? eq(t.id, templateId) : and(eq(t.orgId, ctx.actor!.orgId), eq(t.isDefault, true)))
-    .limit(1);
-  if (templateId && !row) return null;
-  const mjml = row?.mjml ?? BUILT_IN_EMAIL_TEMPLATE;
+  const mjml = await emailTemplateMjml(templateId);
+  if (mjml === null) return null;
   return createHash('sha256').update(mjml, 'utf8').digest('hex').slice(0, 32);
 }

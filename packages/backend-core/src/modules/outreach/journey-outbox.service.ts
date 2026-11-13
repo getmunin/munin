@@ -21,7 +21,8 @@ import {
 import { OutreachInvalidError } from './outreach-errors.ts';
 import { assertEligible } from './eligibility.ts';
 import { emailTemplateHash } from './email-template-hash.ts';
-import { BUILT_IN_EMAIL_TEMPLATE, renderEmail } from './email-template-render.ts';
+import { renderEmail } from './email-template-render.ts';
+import { emailTemplateMjml } from './email-template-source.ts';
 import { personalizeLine } from './merge-fields.ts';
 import { checkSendPolicy, type SendDecision, type SendPolicy } from './send-policy.ts';
 import {
@@ -325,7 +326,8 @@ export class JourneyOutboxService implements ProposalKindHandler {
       contactId: contact.id,
       campaignId: proposal.campaignId ?? proposal.journeyId!,
     });
-    const mjml = await this.templateMjml(delivery.templateId, BUILT_IN_EMAIL_TEMPLATE);
+    const mjml = await emailTemplateMjml(delivery.templateId);
+    if (mjml === null) throw new OutreachInvalidError(`email template ${delivery.templateId} no longer exists`);
     const [org] = await ctx.db
       .select({ name: schema.orgs.name })
       .from(schema.orgs)
@@ -624,17 +626,5 @@ export class JourneyOutboxService implements ProposalKindHandler {
       .orderBy(desc(p.sentAt))
       .limit(1);
     return sent?.conversationId ?? null;
-  }
-
-  private async templateMjml(templateId: string | null, builtIn: string): Promise<string> {
-    const ctx = getCurrentContext();
-    const t = schema.outreachEmailTemplates;
-    const [row] = await ctx.db
-      .select({ mjml: t.mjml })
-      .from(t)
-      .where(templateId ? eq(t.id, templateId) : eq(t.isDefault, true))
-      .limit(1);
-    if (templateId && !row) throw new OutreachInvalidError(`email template ${templateId} no longer exists`);
-    return row?.mjml ?? builtIn;
   }
 }

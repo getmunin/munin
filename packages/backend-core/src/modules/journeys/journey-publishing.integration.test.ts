@@ -257,6 +257,47 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     }
   });
 
+  it('refuses to simulate or test-send an email step whose template was deleted, the way a live send does', async () => {
+    const templateId = randomUUID();
+    const orphaned = spec({
+      start: 'welcome',
+      nodes: [
+        {
+          id: 'welcome',
+          type: 'message',
+          channel: 'email',
+          content: { subject: 'Velkommen', body: 'Hei {{name}}!', templateId },
+          next: 'done',
+        },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const journey = await asAgent(() => journeys.create({ name: 'Trial', outreachCampaignId: campaignId, spec: orphaned }));
+    const kari = await contact('Kari', ['trial']);
+    const gone = new RegExp(`journeys_invalid: email template ${templateId} used by "welcome" does not exist`);
+
+    await expect(
+      asAgent(() => publishing.simulate({ journeyId: journey.id, contactIds: [kari.id], renderSamples: 1 })),
+    ).rejects.toThrow(gone);
+
+    const sent: BulkEmail[] = [];
+    const testSend = new JourneyTestSendService(journeys, new JourneySimulator(runtime), {
+      sendBulk: (_channel, messages) => {
+        sent.push(...messages);
+        return Promise.resolve(messages.map((m) => ({ key: m.key, messageId: `<test-${m.key}@acme.test>`, error: null })));
+      },
+    });
+    await db.insert(schema.orgMembers).values({ orgId, userId, role: 'owner' });
+    try {
+      await expect(
+        asPerson(() => testSend.sendTest({ journeyId: journey.id, nodeId: 'welcome', contactId: kari.id })),
+      ).rejects.toThrow(gone);
+      expect(sent).toEqual([]);
+    } finally {
+      await db.delete(schema.orgMembers).where(eq(schema.orgMembers.orgId, orgId));
+    }
+  });
+
   it('publishes only after a signed-in person confirms the fingerprint they reviewed', async () => {
     const journey = await asAgent(() => journeys.create({ name: 'Trial', outreachCampaignId: campaignId, spec: spec() }));
     const request = await asAgent(() => publishing.requestPublish(journey.id));

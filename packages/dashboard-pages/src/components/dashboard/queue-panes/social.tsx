@@ -7,11 +7,14 @@ import { useActiveMembership } from '../../../auth/use-active-role';
 import { useCopy } from '../../../lib/use-copy';
 import { useRelative } from '../../../lib/use-relative';
 import { useSocialPublishTargets } from '../../../lib/use-publish-target';
-import { PaneFooter, PaneHeader, useCmdEnter, ViewTab, ViewTabRow } from './shared';
+import { useSocialLinkPreview } from '../../../lib/use-social-link-preview';
+import { PLATFORM_NAMES } from '../../integrations/publishing-accounts-grid';
+import { PaneNotice } from '../pane-notice';
+import { PaneFooter, PaneHeader, PreviewStage, useCmdEnter, ViewTab, ViewTabRow } from './shared';
 import type { QueueActionError } from '../inbox-types';
 import { shortPublishName, socialMediaKind, socialPublishAvailability } from './social-actions';
 import { SocialPostPreview } from './social-post-preview';
-import { countBodyChars } from './social-preview';
+import { countBodyChars, previewCard, previewNote, previewPicture } from './social-preview';
 import type { SocialDraftDto, SocialDraftEdit } from './types';
 
 export function SocialQueuePane({
@@ -24,6 +27,7 @@ export function SocialQueuePane({
   onClose,
   actionError,
   onClearActionError,
+  hideHeaderOnMobile,
 }: {
   item: { id: string; title: string; createdAt: string; raw: SocialDraftDto };
   pending: boolean;
@@ -34,6 +38,7 @@ export function SocialQueuePane({
   onClose?: () => void;
   actionError?: QueueActionError;
   onClearActionError?: () => void;
+  hideHeaderOnMobile?: boolean;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
@@ -73,6 +78,11 @@ export function SocialQueuePane({
   const targets = useSocialPublishTargets(draft.canPublish);
   const availability = socialPublishAvailability(draft, targets);
   const canPublishNow = availability.state === 'ready' && onPublish !== undefined;
+
+  const linkPreview = useSocialLinkPreview(draft.id, !draft.mediaUrl && draft.linkUrl !== null);
+  const picture = previewPicture(draft, linkPreview);
+  const card = previewCard(draft, picture, linkPreview);
+  const note = previewNote(draft, picture, card);
 
   const bodyChars = countBodyChars(draft.platform, editedBody);
   const overBy = Math.max(0, bodyChars - stored.maxBodyChars);
@@ -143,6 +153,33 @@ export function SocialQueuePane({
       ? t('socialPublishAs', { name: authorName })
       : t('socialPublish');
   const editAction = { label: t('edit'), onClick: startEdit, disabled: pending };
+  const platformName = PLATFORM_NAMES[draft.platform] ?? draft.platform;
+  const previewAddress = previewAuthor
+    ? t('socialPreviewAddressAs', { platform: platformName, name: previewAuthor })
+    : t('socialPreviewAddress', { platform: platformName });
+
+  const noteNotice =
+    note === 'unreadable' ? (
+      <PaneNotice eyebrow={t('socialPreviewUnreadableEyebrow')}>
+        {t('socialPreviewNoteUnreadable')}
+      </PaneNotice>
+    ) : note ? (
+      <PaneNotice tone="info">{t(NOTE_KEYS[note])}</PaneNotice>
+    ) : null;
+
+  const publishNotice =
+    !editing && availability.state !== 'needsAccount' ? (
+      <PaneNotice tone="info">
+        {availability.state === 'ready'
+          ? asPage
+            ? t('socialPublishHintPage', {
+                platform: platformName,
+                name: availability.authorName ?? platformName,
+              })
+            : t('socialPublishHint', { platform: platformName })
+          : t('socialComposerHint')}
+      </PaneNotice>
+    ) : null;
 
   return (
     <>
@@ -168,10 +205,15 @@ export function SocialQueuePane({
         }
         onClose={onClose}
         closeLabel={t('close')}
+        className={hideHeaderOnMobile ? 'max-md:hidden' : undefined}
       />
 
       <ViewTabRow>
-        <ViewTab active={view === 'preview'} onSelect={() => setView('preview')}>
+        <ViewTab
+          active={view === 'preview'}
+          warn={note === 'unreadable'}
+          onSelect={() => setView('preview')}
+        >
           {t('socialViewPreview')}
         </ViewTab>
         <ViewTab active={view === 'text'} onSelect={() => setView('text')}>
@@ -179,15 +221,30 @@ export function SocialQueuePane({
         </ViewTab>
       </ViewTabRow>
 
-      <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5 md:px-7">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {view === 'preview' ? (
-          <SocialPostPreview
-            draft={draft}
-            authorName={previewAuthor}
-            authorKind={previewAuthorKind}
-          />
+          <PreviewStage
+            address={previewAddress}
+            above={
+              publishNotice || noteNotice ? (
+                <>
+                  {publishNotice}
+                  {noteNotice}
+                </>
+              ) : undefined
+            }
+          >
+            <SocialPostPreview
+              draft={draft}
+              authorName={previewAuthor}
+              authorKind={previewAuthorKind}
+              picture={picture}
+              card={card}
+            />
+          </PreviewStage>
         ) : (
-          <>
+          <div className="space-y-6 px-5 py-5 md:px-7">
+            {publishNotice}
             <section className="space-y-2">
               <div className="flex items-end justify-between gap-3">
                 <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
@@ -295,21 +352,8 @@ export function SocialQueuePane({
                 )}
               </section>
             )}
-          </>
+          </div>
         )}
-
-        {!editing && availability.state !== 'needsAccount' ? (
-          <p className="text-xs text-ink-mute">
-            {availability.state === 'ready'
-              ? asPage
-                ? t('socialPublishHintPage', {
-                    platform: draft.platform,
-                    name: availability.authorName ?? draft.platform,
-                  })
-                : t('socialPublishHint', { platform: draft.platform })
-              : t('socialComposerHint')}
-          </p>
-        ) : null}
       </div>
 
       {editing ? (
@@ -359,3 +403,10 @@ export function SocialQueuePane({
     </>
   );
 }
+
+const NOTE_KEYS = {
+  media: 'socialPreviewNoteMedia',
+  pageImage: 'socialPreviewNotePageImage',
+  facebookCard: 'socialPreviewNoteFacebookCard',
+  noPageImage: 'socialPreviewNoteNoPageImage',
+} as const;

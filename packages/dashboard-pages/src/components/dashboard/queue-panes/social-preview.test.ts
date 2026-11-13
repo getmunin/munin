@@ -5,7 +5,9 @@ import {
   composePreviewComment,
   foldPreviewBody,
   linkHost,
+  previewCard,
   previewLink,
+  previewNote,
   previewPicture,
   splitUrls,
   type SocialPreviewDraft,
@@ -219,5 +221,55 @@ describe('countBodyChars', () => {
 
   it('counts plainly for a platform it has no rule for', () => {
     expect(countBodyChars('mastodon', 'https://example.test/a')).toBe(22);
+  });
+});
+
+describe('previewCard', () => {
+  const facebook = { ...draft, platform: 'facebook' };
+  const page = { linkUrl: draft.linkUrl, readable: true, title: 'Self-writing KB', imageUrl: null };
+
+  it('builds a Facebook card from the link host when there is no picture', () => {
+    expect(previewCard(facebook, { kind: 'none', readable: true }, page)).toEqual({
+      host: 'example.test',
+      title: 'Self-writing KB',
+    });
+  });
+
+  it('builds no card on LinkedIn, once a picture carries the post, or when the link is a comment', () => {
+    expect(previewCard(draft, { kind: 'none', readable: true }, page)).toBeNull();
+    expect(previewCard(facebook, { kind: 'attached' }, page)).toBeNull();
+    expect(
+      previewCard({ ...facebook, linkPlacement: 'comment' }, { kind: 'none', readable: true }, page),
+    ).toBeNull();
+  });
+});
+
+describe('previewNote', () => {
+  it('says nothing while the linked page is still being read', () => {
+    expect(previewNote(draft, { kind: 'pending' }, null)).toBeNull();
+  });
+
+  it('flags an unreadable linked page', () => {
+    expect(previewNote(draft, { kind: 'none', readable: false }, null)).toBe('unreadable');
+  });
+
+  it('explains where the picture comes from', () => {
+    expect(previewNote(draft, { kind: 'page', imageUrl: 'https://example.test/og.png' }, null)).toBe(
+      'pageImage',
+    );
+    expect(previewNote(draft, { kind: 'none', readable: true }, null)).toBe('noPageImage');
+    expect(
+      previewNote(draft, { kind: 'none', readable: true }, { host: 'example.test', title: null }),
+    ).toBe('facebookCard');
+  });
+
+  it('notes that an attached file swallows the link card only when the link sits in the body', () => {
+    const attached = { ...draft, mediaUrl: 'https://example.test/a.png' };
+    expect(previewNote(attached, { kind: 'attached' }, null)).toBe('media');
+    expect(previewNote({ ...attached, linkPlacement: 'comment' }, { kind: 'attached' }, null)).toBeNull();
+  });
+
+  it('says nothing for a post without a link', () => {
+    expect(previewNote({ ...draft, linkUrl: null, shareUrl: null }, { kind: 'none', readable: true }, null)).toBeNull();
   });
 });

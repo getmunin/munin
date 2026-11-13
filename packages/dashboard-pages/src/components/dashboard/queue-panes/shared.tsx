@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link2, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button, Pill, cn } from '@getmunin/ui';
-import { MoreActionsSheet, MoreActionsTrigger } from '../pane-more-actions';
+import { MoreActionsSheet, MoreActionsTrigger, type PaneAction } from '../pane-more-actions';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { describeRef, refIdFromHref, refUrlTransform, remarkRefTokens } from './cms-refs';
@@ -157,6 +157,35 @@ export function ViewTabRow({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex shrink-0 items-center gap-5 border-b-[1px] border-rule-soft px-5 md:px-7 dark:border-rule-on-dark">
       {children}
+    </div>
+  );
+}
+
+export function PreviewStage({
+  address,
+  above,
+  children,
+}: {
+  address: string;
+  above?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-[380px] flex-1 flex-col bg-bone md:p-5 dark:bg-secondary">
+      {above ? <div className="space-y-2 px-5 py-4 md:px-0 md:pt-0">{above}</div> : null}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-paper md:rounded-md md:border-[1px] md:border-rule-soft md:shadow-sm dark:bg-background dark:md:border-rule-on-dark">
+        <div className="flex shrink-0 items-center gap-3 border-b-[1px] border-rule-soft bg-paper-deep px-3.5 py-2 dark:border-rule-on-dark dark:bg-card">
+          <span aria-hidden className="flex gap-1.5">
+            <span className="size-2.5 rounded-full bg-ink/15 dark:bg-foreground/20" />
+            <span className="size-2.5 rounded-full bg-ink/15 dark:bg-foreground/20" />
+            <span className="size-2.5 rounded-full bg-ink/15 dark:bg-foreground/20" />
+          </span>
+          <span className="min-w-0 flex-1 truncate rounded-[4px] border-[1px] border-rule-soft bg-paper px-2.5 py-1 font-mono text-[11px] text-ink-mute dark:border-rule-on-dark dark:bg-background">
+            {address}
+          </span>
+        </div>
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
+      </div>
     </div>
   );
 }
@@ -459,6 +488,8 @@ export function PaneFooter({
   bordered = true,
   error,
   onClearError,
+  extra,
+  sheetActions,
 }: {
   primary: { label: string; onClick: () => void; disabled?: boolean; arrow?: boolean };
   secondary: PaneFooterAction[];
@@ -466,9 +497,14 @@ export function PaneFooter({
   bordered?: boolean;
   error?: QueueActionError;
   onClearError?: () => void;
+  extra?: React.ReactNode;
+  sheetActions?: PaneAction[];
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
-  const hasSecondary = secondary.length > 0;
+  const actions =
+    sheetActions ??
+    secondary.map((b) => ({ label: b.label, disabled: b.disabled, run: b.onClick }));
+  const hasSecondary = actions.length > 0;
 
   return (
     <div className={cn(bordered && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark')}>
@@ -477,7 +513,7 @@ export function PaneFooter({
         onDismiss={onClearError ?? (() => {})}
       />
     <div className="flex items-center justify-between gap-2 px-5 py-3 md:px-7">
-      <div className="flex flex-1 items-center gap-2 md:flex-none">
+      <div className="flex flex-1 flex-wrap items-center gap-2 md:flex-none">
         <Button
           variant="accent"
           onClick={primary.onClick}
@@ -489,7 +525,7 @@ export function PaneFooter({
         </Button>
         {hasSecondary && (
           <MoreActionsTrigger
-            disabled={secondary.every((b) => b.disabled)}
+            disabled={actions.every((b) => b.disabled)}
             onOpen={() => setMoreOpen(true)}
           />
         )}
@@ -504,6 +540,7 @@ export function PaneFooter({
             {b.label}
           </Button>
         ))}
+        {extra}
       </div>
       {shortcut && (
         <span className="hidden font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label md:inline">
@@ -514,11 +551,7 @@ export function PaneFooter({
         <MoreActionsSheet
           open={moreOpen}
           onOpenChange={setMoreOpen}
-          actions={secondary.map((b) => ({
-            label: b.label,
-            disabled: b.disabled,
-            run: b.onClick,
-          }))}
+          actions={actions}
         />
       )}
     </div>

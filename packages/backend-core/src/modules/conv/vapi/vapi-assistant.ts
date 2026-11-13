@@ -45,6 +45,23 @@ export function composeVoiceSystemPrompt(
   return parts.join('\n\n');
 }
 
+export function formatLanguageContext(locale: unknown): string | undefined {
+  if (typeof locale !== 'string') return undefined;
+  const tag = locale.trim();
+  if (!tag) return undefined;
+  let name: string | undefined;
+  try {
+    name = new Intl.DisplayNames(['en'], { type: 'language' }).of(tag);
+  } catch {
+    return undefined;
+  }
+  if (!name || name === tag) return undefined;
+  return [
+    '[Language]',
+    `The chat widget is shown in ${name} (${tag}). Greet the caller in ${name}, and keep speaking ${name} unless the caller's own chat messages or speech are in another language — then use theirs.`,
+  ].join('\n');
+}
+
 export class OrgScopedKbDocReader implements KbDocReader {
   constructor(
     private readonly db: Db,

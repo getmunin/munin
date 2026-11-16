@@ -79,6 +79,18 @@ function pngFile(name = 'pic.png', bytes = 64): File {
   return new File([new Uint8Array(bytes)], name, { type: 'image/png' });
 }
 
+function pickFiles(files: File[]): void {
+  const input = $<HTMLInputElement>('.attach-input');
+  Object.defineProperty(input, 'files', { value: files, configurable: true });
+  input.dispatchEvent(new Event('change'));
+}
+
+function typeInComposer(text: string): void {
+  const textarea = $<HTMLTextAreaElement>('textarea');
+  textarea.value = text;
+  textarea.dispatchEvent(new Event('input'));
+}
+
 function mountChat(hooks: Parameters<typeof mount>[2]): UiController {
   const c = mount(baseConfig, strings, hooks);
   c.setView('chat');
@@ -326,7 +338,7 @@ describe('ui: drag-and-drop hint', () => {
 });
 
 describe('ui: composer note', () => {
-  it('keeps the note up until it is dismissed rather than timing out', async () => {
+  it('keeps the upload-failure note up until the failed image is removed', async () => {
     vi.useFakeTimers();
     try {
       controller = mountChat({
@@ -334,20 +346,87 @@ describe('ui: composer note', () => {
         onTypingIntent: () => {},
         onUploadAttachment: () => Promise.reject(new Error('boom')),
       });
-      const input = $<HTMLInputElement>('.attach-input');
-      Object.defineProperty(input, 'files', { value: [pngFile()], configurable: true });
-      input.dispatchEvent(new Event('change'));
+      pickFiles([pngFile()]);
       await vi.waitFor(() => expect($('.composer-note').hidden).toBe(false));
 
       vi.advanceTimersByTime(60_000);
+      typeInComposer('still typing');
       expect($('.composer-note').hidden).toBe(false);
+      expect($('.composer-note-text').textContent).toBe(strings.attachFailed);
 
-      $<HTMLButtonElement>('.composer-note-close').click();
+      $<HTMLButtonElement>('.att-chip-drop').click();
       expect($('.composer-note').hidden).toBe(true);
       expect($('.composer-note-text').textContent).toBe('');
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('has no close button', () => {
+    controller = mountChat({ onSend: () => {}, onTypingIntent: () => {} });
+    expect(shadowRoot().querySelector('.composer-note-close')).toBeNull();
+  });
+
+  it('keeps the upload-failure note while another failed image remains', async () => {
+    controller = mountChat({
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onUploadAttachment: () => Promise.reject(new Error('boom')),
+    });
+    pickFiles([pngFile(), pngFile()]);
+    await vi.waitFor(() => expect($$('.att-chip-error')).toHaveLength(2));
+
+    $<HTMLButtonElement>('.att-chip-drop').click();
+    expect($('.composer-note').hidden).toBe(false);
+    expect($('.composer-note-text').textContent).toBe(strings.attachFailed);
+  });
+
+  it('clears a rejection note once the visitor types', () => {
+    controller = mountChat({
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onUploadAttachment: () => Promise.resolve({ id: 'att' }),
+    });
+    pickFiles([new File(['x'], 'a.heic', { type: 'image/heic' })]);
+    expect($('.composer-note-text').textContent).toBe(strings.attachTypeRejected);
+
+    typeInComposer('h');
+    expect($('.composer-note').hidden).toBe(true);
+  });
+
+  it('clears a rejection note when the next image is picked', () => {
+    controller = mountChat({
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onUploadAttachment: () => Promise.resolve({ id: 'att' }),
+    });
+    pickFiles([new File(['x'], 'a.heic', { type: 'image/heic' })]);
+    expect($('.composer-note').hidden).toBe(false);
+
+    pickFiles([pngFile()]);
+    expect($('.composer-note').hidden).toBe(true);
+  });
+
+  it('clears a send failure once the visitor types again', () => {
+    controller = mountChat({ onSend: () => {}, onTypingIntent: () => {} });
+    controller.showComposerError(strings.sendFailed);
+    typeInComposer('r');
+    expect($('.composer-note').hidden).toBe(true);
+  });
+
+  it('falls back to the upload-failure note when a later notice is cleared', async () => {
+    controller = mountChat({
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onUploadAttachment: () => Promise.reject(new Error('boom')),
+    });
+    pickFiles([pngFile()]);
+    await vi.waitFor(() => expect($('.att-chip-error')).toBeTruthy());
+    controller.showComposerError(strings.sendFailed);
+    expect($('.composer-note-text').textContent).toBe(strings.sendFailed);
+
+    typeInComposer('x');
+    expect($('.composer-note-text').textContent).toBe(strings.attachFailed);
   });
 
   it('marks the note as an alert so assistive tech announces it', () => {

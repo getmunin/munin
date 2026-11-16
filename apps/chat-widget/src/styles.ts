@@ -1244,11 +1244,6 @@ a.pcard:focus-visible .pcard-arrow {
   flex: 1 1 auto;
   min-width: 0;
 }
-.composer-note-close {
-  flex: 0 0 auto;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
 
 .composer-atts {
   display: flex;

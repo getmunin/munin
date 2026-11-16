@@ -913,7 +913,7 @@ function VersionList({
   const tStatus = useTranslations('dashboard.journeys.status');
   const format = useFormatter();
   return (
-    <ol className="divide-y divide-rule-soft border-y border-rule-soft dark:divide-rule-on-dark dark:border-rule-on-dark">
+    <ol className="divide-y divide-rule-soft border-b border-rule-soft dark:divide-rule-on-dark dark:border-rule-on-dark">
       {versions.map((v) => {
         const isLive = v.number === liveVersion;
         const summary = v.changeSummary ? uniqueLines(v.changeSummary) : [];

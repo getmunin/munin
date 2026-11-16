@@ -137,6 +137,30 @@ const skipReason = TEST_URL
     expect(detail.subject).toBe('Double charge on invoice 4471');
   });
 
+  it('carries the channel id and name through getConversation so the runner can load the channel descriptor', async () => {
+    const dispatcher = new WebhookDispatcher();
+    const claims = new ConversationClaimsService(dispatcher);
+    const conv = new ConvService(
+      dispatcher,
+      claims,
+      new CuratorJobsService(dispatcher),
+      new AlertsService(dispatcher),
+      stubAttachmentGateway(),
+    );
+    const factory = new InProcessMuninRestClientFactoryService(
+      db,
+      conv,
+      claims,
+      new CuratorJobsService(dispatcher),
+      new ConvTranslationService(dispatcher, conv, new MessageTranslatorRegistry()),
+    );
+    const client = factory.forOrg(orgId);
+
+    const detail = await client.getConversation(conversationId);
+    expect(detail.channelId).toBe(channelId);
+    expect(detail.channelName).toBe('Widget');
+  });
+
   it('carries message components through postAgentMessage into conv_messages.metadata', async () => {
     const dispatcher = new WebhookDispatcher();
     const claims = new ConversationClaimsService(dispatcher);

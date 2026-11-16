@@ -1,5 +1,33 @@
 # @getmunin/chat-widget
 
+## 5.54.1
+
+### Patch Changes
+
+- a9a988b: The chat widget's composer error clears itself once its cause is gone, and the Close link next to it is removed. "That image didn't upload" stays visible while a failed image is in the tray and disappears when the visitor removes it. The size, type and count rejections and "That message didn't send" disappear when the visitor types, picks or removes an image, or sends. If a failed image is still in the tray when another notice clears, the upload-failure note comes back.
+- 804d608: Three chat widget error paths now behave as the visitor would expect.
+
+  - A failed voice call says so. "Voice call failed" was written to the call panel's status line in the same step that closed the panel, so the visitor landed back in chat with no explanation. It now appears in the composer note.
+  - A message that fails to send is put back. The composer used to clear the text and images before the request went out, so a failure lost them and "Try again" meant retyping. They are now restored with the send-failure note, unless the visitor has typed something new or moved to another conversation in the meantime. Restored images keep their upload ids, so resending doesn't upload them again.
+  - The 10 MB image limit is checked after downscaling. A large phone photo used to be refused before the widget shrank it to 1600 px. Now only files that can't be shrunk are refused up front: GIFs, files over 50 MB, or any file when the browser has no `createImageBitmap`. A photo still over the limit after shrinking gets the size message rather than "That image didn't upload".
+
+- 3231fb6: The chat widget now logs why an image upload failed. A blocked or refused upload to storage used to surface only as "network error" with nothing in the console; it now logs `[munin-widget] attachment upload failed:` with the storage host, the browser's reason or the HTTP status, and, for a request that never completes, a reminder that the bucket must allow uploads from the embedding site's origin. The presigned query string is kept out of the message.
+
+  The widget setup skill and `.env.example` now say that S3-compatible storage needs a bucket CORS rule allowing POST and PUT from any origin. Browsers upload straight to the bucket, and the widget does so from every site that embeds it, so an allow-list containing only the dashboard origin breaks visitor image uploads.
+
+- 91358f5: The chat widget now tells the visitor about failures it used to keep in the console, and lets them act on them.
+
+  - While the "Reconnecting…" bar shows, the presence line under the conversation title reads "Offline" with a grey dot instead of a green "Online now".
+  - A PDF or other non-image file dropped or pasted into the chat gets "We take PNG, JPEG, GIF and WebP." instead of being ignored.
+  - A failed image upload shows a retry button on its thumbnail, which uploads the same file again.
+  - An email that fails to save on the "Save this thread" card shows an error under the field, cleared on the next attempt.
+  - History that fails to load shows "Couldn't load messages. Retrying…" in the status bar while the widget retries with backoff (2 s doubling to 30 s). A connection problem takes priority in that bar.
+  - A call started from the host page that can't create its conversation shows "Voice call failed".
+
+  Four new strings, translated for every locale: `statusOffline`, `attachRetryAriaLabel`, `emailSaveFailed`, `historyLoadFailed`.
+
+- @getmunin/types@5.54.1
+
 ## 5.54.0
 
 ### Patch Changes

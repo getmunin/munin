@@ -125,6 +125,8 @@ function buildClient(opts: BuildOptions): AgentRestClient {
           id: detail.id,
           status: detail.status,
           channelType: detail.channelType,
+          channelId: detail.channelId,
+          channelName: detail.channelName,
           subject: detail.subject,
           endUserId: detail.endUserId,
           assigneeUserId: detail.assigneeUserId,

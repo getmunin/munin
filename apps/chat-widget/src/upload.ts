@@ -118,12 +118,28 @@ export async function uploadToPresigned(
         headers: { 'Content-Type': prepared.mime },
       });
     }
-  } catch {
-    throw uploadFailedError('network error');
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw uploadFailedError(
+      `network error reaching ${storageLocation(target.uploadUrl)} (${reason}). If the console shows a CORS error, the storage bucket must allow ${target.uploadMethod} from ${pageOrigin()}`,
+    );
   }
   if (!res.ok) {
-    throw uploadFailedError(`status ${res.status}`);
+    throw uploadFailedError(`status ${res.status} from ${storageLocation(target.uploadUrl)}`);
   }
+}
+
+function storageLocation(uploadUrl: string): string {
+  try {
+    const url = new URL(uploadUrl);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return 'storage';
+  }
+}
+
+function pageOrigin(): string {
+  return typeof location !== 'undefined' ? location.origin : 'this site';
 }
 
 function uploadFailedError(detail: string): Error {

@@ -37,6 +37,10 @@ const h = vi.hoisted(() => {
     })),
     setVoiceState: vi.fn(),
     setView: vi.fn(),
+    setHistoryFailed: vi.fn(),
+    setEmailFailed: vi.fn(),
+    showComposerError: vi.fn(),
+    setVisitorEmail: vi.fn((): Promise<void> => Promise.resolve()),
     setSessionId: vi.fn(),
     postMessage: vi.fn(() => Promise.resolve({})),
     reconnect: vi.fn(),
@@ -45,6 +49,7 @@ const h = vi.hoisted(() => {
     hooks: {
       onEnterNewChat: undefined as (() => void) | undefined,
       onSend: undefined as ((text: string, attachmentIds: string[]) => void) | undefined,
+      onSetVisitorEmail: undefined as ((email: string) => void) | undefined,
     },
   };
 });
@@ -82,7 +87,7 @@ vi.mock('./api.ts', () => ({
     postMessage: h.postMessage,
     backfillSince: h.backfillSince,
     listConversations: h.listConversations,
-    setVisitorEmail: vi.fn(),
+    setVisitorEmail: h.setVisitorEmail,
     startConversation: h.startConversation,
     voiceAvailable: vi.fn(),
     voiceStart: h.voiceStart,
@@ -125,6 +130,9 @@ vi.mock('./ui.ts', () => ({
       setVoiceCallWho: h.setVoiceCallWho,
       setVoiceState: h.setVoiceState,
       setView: h.setView,
+      setHistoryFailed: h.setHistoryFailed,
+      setEmailFailed: h.setEmailFailed,
+      showComposerError: h.showComposerError,
     };
     return new Proxy(stateful, {
       get: (target, prop) => (typeof prop === 'string' && prop in target ? target[prop] : vi.fn()),
@@ -573,5 +581,53 @@ describe('calling from the host page', () => {
 
     expect(h.startConversation).not.toHaveBeenCalled();
     expect(h.voiceStart).not.toHaveBeenCalled();
+  });
+});
+
+describe('failures the visitor can see', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.listeners.state = undefined;
+    document.body.innerHTML = '';
+    delete (window as Window & WindowWithMnWidget).mn;
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('says history failed to load and retries until it does', async () => {
+    vi.useFakeTimers();
+    h.backfillSince.mockRejectedValueOnce(new Error('503'));
+    start({ ...baseConfig });
+
+    h.listeners.state!('connected');
+    await vi.waitFor(() => expect(h.setHistoryFailed).toHaveBeenCalledWith(true));
+    expect(h.backfillSince).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(h.backfillSince).toHaveBeenCalledTimes(2);
+    expect(h.setHistoryFailed).toHaveBeenLastCalledWith(false);
+  });
+
+  it('tells the visitor when their email did not save', async () => {
+    h.setVisitorEmail.mockRejectedValueOnce(new Error('500'));
+    start({ ...baseConfig });
+
+    h.hooks.onSetVisitorEmail!('kari@example.com');
+
+    await vi.waitFor(() => expect(h.setEmailFailed).toHaveBeenCalledTimes(1));
+  });
+
+  it('tells the visitor when a call from the page cannot start a conversation', async () => {
+    h.startConversation.mockRejectedValueOnce(new Error('500'));
+    start({ ...baseConfig });
+
+    const result = await getMnWidget().call();
+
+    expect(result).toEqual({ started: false, reason: 'conversation_failed' });
+    expect(h.showComposerError).toHaveBeenCalledWith('Voice call failed');
   });
 });

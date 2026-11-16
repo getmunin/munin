@@ -215,3 +215,151 @@ describe('ui: images over the size limit', () => {
     expect(onUploadAttachment).not.toHaveBeenCalled();
   });
 });
+
+describe('ui: presence while the connection is down', () => {
+  it('says Offline with the reconnecting bar, and Online now once back', () => {
+    vi.useFakeTimers();
+    try {
+      controller = mountChat({});
+      controller.setConnectionState('connected');
+      expect($('.chat-sub-label').textContent).toBe(strings.onlineNow);
+
+      controller.setConnectionState('reconnecting');
+      vi.advanceTimersByTime(2000);
+      expect($('.status').textContent).toBe(strings.statusReconnecting);
+      expect($('.chat-sub-label').textContent).toBe(strings.statusOffline);
+      expect($('.chat-sub').classList.contains('offline')).toBe(true);
+
+      controller.setConnectionState('connected');
+      expect($('.chat-sub-label').textContent).toBe(strings.onlineNow);
+      expect($('.chat-sub').classList.contains('offline')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps showing Online now through a blip shorter than the grace period', () => {
+    vi.useFakeTimers();
+    try {
+      controller = mountChat({});
+      controller.setConnectionState('reconnecting');
+      vi.advanceTimersByTime(500);
+      controller.setConnectionState('connected');
+      vi.advanceTimersByTime(2000);
+      expect($('.chat-sub-label').textContent).toBe(strings.onlineNow);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('ui: files that are not images', () => {
+  function pdf(): File {
+    return new File(['pdf bytes'], 'invoice.pdf', { type: 'application/pdf' });
+  }
+
+  it('explains which types are accepted when a PDF is dropped', () => {
+    const onUploadAttachment = vi.fn();
+    controller = mountChat({ onUploadAttachment });
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', { value: { types: ['Files'], files: [pdf()] } });
+    $('.chat').dispatchEvent(drop);
+
+    expect(onUploadAttachment).not.toHaveBeenCalled();
+    expect(noteText()).toBe(strings.attachTypeRejected);
+  });
+
+  it('explains which types are accepted when a PDF is pasted', () => {
+    controller = mountChat({ onUploadAttachment: vi.fn() });
+    const paste = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, 'clipboardData', { value: { files: [pdf()] } });
+    $('textarea').dispatchEvent(paste);
+
+    expect(paste.defaultPrevented).toBe(true);
+    expect(noteText()).toBe(strings.attachTypeRejected);
+  });
+
+  it('leaves a plain text paste alone', () => {
+    controller = mountChat({ onUploadAttachment: vi.fn() });
+    const paste = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, 'clipboardData', { value: { files: [] } });
+    $('textarea').dispatchEvent(paste);
+
+    expect(paste.defaultPrevented).toBe(false);
+    expect(noteText()).toBeNull();
+  });
+});
+
+describe('ui: retrying a failed upload', () => {
+  it('uploads the same file again from the failed thumbnail', async () => {
+    const onUploadAttachment = vi
+      .fn<NonNullable<UiHooks['onUploadAttachment']>>()
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({ id: 'att_2' });
+    controller = mountChat({ onUploadAttachment });
+    const file = imageFile('a.png', 'image/png', 64);
+    pickFiles([file]);
+    await vi.waitFor(() => expect(noteText()).toBe(strings.attachFailed));
+
+    const retry = $<HTMLButtonElement>('.att-chip-retry');
+    expect(retry.getAttribute('aria-label')).toBe(strings.attachRetryAriaLabel);
+    retry.click();
+
+    expect(onUploadAttachment).toHaveBeenLastCalledWith(file);
+    expect(noteText()).toBeNull();
+    await vi.waitFor(() => expect($$('.att-chip-ready')).toHaveLength(1));
+    expect(shadowRoot().querySelector('.att-chip-retry')).toBeNull();
+  });
+
+  it('offers no retry while an upload is still in progress', () => {
+    controller = mountChat({ onUploadAttachment: () => new Promise(() => {}) });
+    pickFiles([imageFile('a.png', 'image/png', 64)]);
+    expect(shadowRoot().querySelector('.att-chip-retry')).toBeNull();
+  });
+});
+
+describe('ui: email that did not save', () => {
+  it('shows the error on the card and clears it on the next attempt', () => {
+    const onSetVisitorEmail = vi.fn();
+    controller = mountChat({ onSetVisitorEmail });
+    controller.showEmailCard();
+    controller.setEmailFailed();
+    expect($('.card-error').textContent).toBe(strings.emailSaveFailed);
+    expect($('.card-error').getAttribute('role')).toBe('alert');
+
+    $<HTMLInputElement>('.card-form input').value = 'kari@example.com';
+    $('.card-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    expect(onSetVisitorEmail).toHaveBeenCalledWith('kari@example.com');
+    expect(shadowRoot().querySelector('.card-error')).toBeNull();
+  });
+
+  it('ignores a late failure once the email is saved', () => {
+    controller = mountChat({});
+    controller.showEmailCard();
+    controller.setEmailSaved('kari@example.com');
+    controller.setEmailFailed();
+    expect(shadowRoot().querySelector('.card-error')).toBeNull();
+  });
+});
+
+describe('ui: history that did not load', () => {
+  it('shows a status line until history loads', () => {
+    controller = mountChat({});
+    controller.setHistoryFailed(true);
+    expect($('.status').hidden).toBe(false);
+    expect($('.status').textContent).toBe(strings.historyLoadFailed);
+
+    controller.setHistoryFailed(false);
+    expect($('.status').hidden).toBe(true);
+  });
+
+  it('lets the connection status take priority, then falls back', () => {
+    controller = mountChat({});
+    controller.setHistoryFailed(true);
+    controller.setConnectionState('closed');
+    expect($('.status').textContent).toBe(strings.statusDisconnected);
+
+    controller.setConnectionState('connected');
+    expect($('.status').textContent).toBe(strings.historyLoadFailed);
+  });
+});

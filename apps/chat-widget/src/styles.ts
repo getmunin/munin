@@ -583,6 +583,7 @@ button {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--munin-verdigris);
 }
+.chat-sub.offline .chat-sub-dot { background: var(--munin-ink-mute); }
 
 .messages {
   flex: 1;
@@ -731,6 +732,12 @@ button {
   color: var(--munin-ink);
 }
 .card-form { display: flex; gap: 6px; }
+.card-error {
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--munin-danger);
+}
 .card-form input {
   flex: 1;
   min-width: 0;
@@ -1279,6 +1286,23 @@ a.pcard:focus-visible .pcard-arrow {
   pointer-events: none;
 }
 .att-chip-error .att-chip-badge { color: var(--munin-danger); }
+.att-chip-retry {
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.att-chip-retry:focus-visible { outline: 2px solid var(--munin-danger); outline-offset: -2px; }
+.att-chip-retry svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 .att-chip-drop {
   position: absolute;

@@ -20,7 +20,12 @@ import {
 } from './api.ts';
 import { createRealtimeClient, type IncomingTyping } from './realtime.ts';
 import { mount, type UiController } from './ui.ts';
-import { prepareImageForUpload, rejectionForPrepared, uploadToPresigned } from './upload.ts';
+import {
+  attachmentTooLargeError,
+  prepareImageForUpload,
+  rejectionForPrepared,
+  uploadToPresigned,
+} from './upload.ts';
 import { pickLocale } from './strings/index.ts';
 import { isNudgeSnoozed, snoozeNudge } from './nudge.ts';
 import { createVoiceSession, type VoiceSession } from '@getmunin/widget-voice';
@@ -530,7 +535,7 @@ export function start(config: WidgetConfig): void {
   const { strings } = pickLocale(config.locale);
   const ui: UiController = mount(config, strings, {
     onSend(text, attachmentIds) {
-      void sendMessage(text, attachmentIds);
+      return sendMessage(text, attachmentIds);
     },
     onUploadAttachment(file) {
       return uploadAttachment(file).catch((err: unknown) => {
@@ -623,9 +628,9 @@ export function start(config: WidgetConfig): void {
   async function uploadAttachment(file: File): Promise<{ id: string }> {
     const conversationId = currentConversationId ?? (await ensureConversation());
     const prepared = await prepareImageForUpload(file);
-    if (rejectionForPrepared(prepared) !== null) {
-      throw new Error('attachment rejected after downscale');
-    }
+    const rejection = rejectionForPrepared(prepared);
+    if (rejection === 'too_large') throw attachmentTooLargeError(prepared.blob.size);
+    if (rejection !== null) throw new Error(`attachment rejected after downscale: ${rejection}`);
     const handle = await api.requestAttachment({
       conversationId,
       name: prepared.name,
@@ -664,7 +669,7 @@ export function start(config: WidgetConfig): void {
       } else {
         console.warn('[munin-widget] send failed:', err);
       }
-      ui.showComposerError(strings.sendFailed);
+      throw err;
     } finally {
       ui.setSending(false);
     }

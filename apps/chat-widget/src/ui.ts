@@ -17,7 +17,8 @@ import {
   ATTACHMENT_BYTES_MAX,
   ATTACHMENT_MIME_ALLOWLIST,
   ATTACHMENT_PER_MESSAGE_MAX,
-  rejectionFor,
+  isAttachmentTooLarge,
+  preflightRejectionFor,
 } from './upload.ts';
 
 export type ConnectionLabel = 'connected' | 'reconnecting' | 'closed' | 'idle' | 'connecting';
@@ -30,7 +31,7 @@ export interface UploadedAttachment {
 }
 
 export interface UiHooks {
-  onSend: (text: string, attachmentIds: string[]) => void;
+  onSend: (text: string, attachmentIds: string[]) => void | Promise<void>;
   onUploadAttachment?: (file: File) => Promise<UploadedAttachment>;
   onTypingIntent: (intent: 'typing' | 'stopped') => void;
   onOpen?: () => void;
@@ -291,6 +292,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
 
   function setVoiceState(state: VoiceUiState): void {
     const wasActive = isVoiceActive(voiceState);
+    const wasError = voiceState === 'error';
     voiceState = state;
     const active = isVoiceActive(state);
 
@@ -322,10 +324,8 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       panel.voiceCallAvatar.classList.remove('pulsing');
       panel.voiceCallDot.classList.remove('blink');
       stopCallTimer();
-      if (state === 'error') {
-        panel.voiceCallStatusLabel.textContent = strings.voiceFailed;
-        panel.voiceCallTimerSep.hidden = true;
-        panel.voiceCallTimer.hidden = true;
+      if (state === 'error' && !wasError) {
+        showComposerNote(strings.voiceFailed);
       }
     }
 
@@ -507,6 +507,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   let sendingNow = false;
   let pendingAttachments: PendingAttachment[] = [];
   let attachCounter = 0;
+  let composerEpoch = 0;
 
   let reconnectGraceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -662,7 +663,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
         showComposerNote(format(strings.attachTooMany, locale, { n: ATTACHMENT_PER_MESSAGE_MAX }));
         break;
       }
-      const rejection = rejectionFor(file);
+      const rejection = preflightRejectionFor(file);
       if (rejection === 'mime') {
         showComposerNote(strings.attachTypeRejected);
         continue;
@@ -690,8 +691,13 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
           renderAttachmentTray();
           refreshComposerState();
         },
-        () => {
+        (err: unknown) => {
           if (!pendingAttachments.includes(item)) return;
+          if (isAttachmentTooLarge(err)) {
+            removeAttachment(item.key);
+            showComposerNote(format(strings.attachTooLarge, locale, { n: ATTACHMENT_MB_MAX }));
+            return;
+          }
           item.state = 'error';
           renderAttachmentTray();
           refreshComposerState();
@@ -773,6 +779,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     emailSaved = null;
     conversationEnvelope = null;
     composerNotice = null;
+    composerEpoch += 1;
     clearAttachments();
     closeLightbox();
     refreshComposerState();
@@ -842,8 +849,11 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     const text = panel.textarea.value.trim();
     if (!canSend()) return;
     const attachmentIds = readyAttachmentIds();
+    const sentAttachments = pendingAttachments.filter((a) => a.state === 'ready');
+    const epoch = composerEpoch;
     panel.textarea.value = '';
     composerNotice = null;
+    pendingAttachments = pendingAttachments.filter((a) => a.state !== 'ready');
     clearAttachments();
     autoGrow(panel.textarea);
     refreshComposerState();
@@ -852,7 +862,31 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       typingIdleTimer = null;
     }
     hooks.onTypingIntent('stopped');
-    hooks.onSend(text, attachmentIds);
+    void Promise.resolve(hooks.onSend(text, attachmentIds)).then(
+      () => discardPreviews(sentAttachments),
+      () => restoreDraft(epoch, text, sentAttachments),
+    );
+  }
+
+  function discardPreviews(items: PendingAttachment[]): void {
+    for (const item of items) revokePreview(item);
+  }
+
+  function restoreDraft(epoch: number, text: string, items: PendingAttachment[]): void {
+    if (epoch !== composerEpoch) {
+      discardPreviews(items);
+      return;
+    }
+    if (panel.textarea.value.trim() === '') {
+      panel.textarea.value = text;
+      autoGrow(panel.textarea);
+    }
+    const room = Math.max(0, ATTACHMENT_PER_MESSAGE_MAX - pendingAttachments.length);
+    discardPreviews(items.slice(room));
+    pendingAttachments = [...items.slice(0, room), ...pendingAttachments];
+    renderAttachmentTray();
+    showComposerNote(strings.sendFailed);
+    refreshComposerState();
   }
 
   function destroy(): void {

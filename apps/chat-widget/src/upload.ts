@@ -9,6 +9,8 @@ import {
 const MAX_EDGE_PX = 1600;
 const SKIP_REENCODE_BELOW_BYTES = 128 * 1024;
 const PASSTHROUGH_MIMES = new Set(['image/gif']);
+const DOWNSCALE_INPUT_BYTES_MAX = 50 * 1024 * 1024;
+const TOO_LARGE_CODE = 'conv_attachment_too_large';
 
 export const ATTACHMENT_MIME_ALLOWLIST = CONV_ATTACHMENT_MIME_ALLOWLIST;
 
@@ -32,6 +34,26 @@ export interface PresignedUploadTarget {
 
 export function rejectionFor(file: File): AttachmentRejection | null {
   return attachmentRejectionFor({ mime: file.type, sizeBytes: file.size });
+}
+
+export function preflightRejectionFor(file: File): AttachmentRejection | null {
+  const rejection = rejectionFor(file);
+  if (rejection !== 'too_large') return rejection;
+  return canDownscale(file) && file.size <= DOWNSCALE_INPUT_BYTES_MAX ? null : 'too_large';
+}
+
+function canDownscale(file: File): boolean {
+  return typeof createImageBitmap === 'function' && !PASSTHROUGH_MIMES.has(normalizeMime(file.type));
+}
+
+export function attachmentTooLargeError(sizeBytes: number): Error {
+  return Object.assign(new Error(`attachment still ${sizeBytes} bytes after downscale`), {
+    code: TOO_LARGE_CODE,
+  });
+}
+
+export function isAttachmentTooLarge(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === TOO_LARGE_CODE;
 }
 
 export function rejectionForPrepared(prepared: PreparedUpload): AttachmentRejection | null {

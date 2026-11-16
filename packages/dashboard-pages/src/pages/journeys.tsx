@@ -312,7 +312,7 @@ function JourneyDetail({
             <span className="mt-3 flex flex-wrap items-center gap-2.5">
               <StatusPill status={journey.status} />
               <span className="font-mono text-[11px] text-ink-mute">
-                {versionLabel(t, journey.liveVersion, journey.draftVersion)}
+                {heroVersionLabel(t, journey.liveVersion, journey.draftVersion)}
               </span>
             </span>
           </>
@@ -910,49 +910,63 @@ function VersionList({
   onMove: (n: number) => void;
 }) {
   const t = useTranslations('dashboard.journeys.versions');
+  const tStatus = useTranslations('dashboard.journeys.status');
   const format = useFormatter();
   return (
-    <ol className="space-y-3">
-      {versions.map((v) => (
-        <li key={v.number} className="rounded-card border-[1px] border-rule-soft p-3 dark:border-rule-on-dark">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-sm text-ink dark:text-foreground">v{v.number}</span>
-            {v.publishedAt ? (
-              <Pill tone="live">{t('published', { at: format.dateTime(new Date(v.publishedAt), { dateStyle: 'medium' }) })}</Pill>
-            ) : v.publishRequestedAt ? (
-              <Pill tone="review">{t('awaiting')}</Pill>
-            ) : (
-              <Pill tone="draft">{t('draft')}</Pill>
-            )}
-            {v.validation && !v.validation.valid && (
-              <span className="font-mono text-[10px] text-destructive">{t('errors', { count: v.validation.errors.length })}</span>
-            )}
-            {!v.publishedAt && (
-              <Button size="sm" variant="outline" className="ml-auto" onClick={() => onPublish(v.number)}>
-                {t('review')}
-              </Button>
-            )}
-            {v.number === liveVersion && v.number > 1 && (
-              <Button size="sm" variant="outline" className="ml-auto" onClick={() => onMove(v.number)}>
-                {t('moveHere')}
-              </Button>
-            )}
-          </div>
-          {v.proposal?.hypothesis ? (
-            <div className="mt-2 space-y-1 text-sm">
-              <Pill tone="review">{t('proposed')}</Pill>
-              <p className="text-ink dark:text-foreground">{v.proposal.hypothesis}</p>
-              {v.proposal.rationale && <p className="whitespace-pre-line text-xs text-ink-mute">{v.proposal.rationale}</p>}
+    <ol className="divide-y divide-rule-soft border-y border-rule-soft dark:divide-rule-on-dark dark:border-rule-on-dark">
+      {versions.map((v) => {
+        const isLive = v.number === liveVersion;
+        const summary = v.changeSummary ? uniqueLines(v.changeSummary) : [];
+        return (
+          <li key={v.number} className="py-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="font-mono text-sm text-ink dark:text-foreground">v{v.number}</span>
+              {isLive && <Pill tone="live">{tStatus('live')}</Pill>}
+              {v.publishedAt ? (
+                <span className="font-mono text-[11px] text-ink-mute">
+                  {t('published', { at: format.dateTime(new Date(v.publishedAt), { dateStyle: 'medium' }) })}
+                </span>
+              ) : v.publishRequestedAt ? (
+                <Pill tone="review">{t('awaiting')}</Pill>
+              ) : (
+                <span className="font-mono text-[11px] text-ink-mute">{t('draft')}</span>
+              )}
+              {v.validation && !v.validation.valid && (
+                <span className="font-mono text-[11px] text-destructive">{t('errors', { count: v.validation.errors.length })}</span>
+              )}
+              {!v.publishedAt && (
+                <Button size="sm" variant="outline" className="ml-auto" onClick={() => onPublish(v.number)}>
+                  {t('review')}
+                </Button>
+              )}
+              {isLive && v.number > 1 && (
+                <Button size="sm" variant="ghost" className="ml-auto" onClick={() => onMove(v.number)}>
+                  {t('moveHere')}
+                </Button>
+              )}
             </div>
-          ) : (
-            v.changeSummary && (
-              <p className="mt-2 whitespace-pre-line font-mono text-[11px] text-ink-mute">{v.changeSummary}</p>
-            )
-          )}
-        </li>
-      ))}
+            {v.proposal?.hypothesis ? (
+              <div className="mt-3 max-w-prose space-y-1.5">
+                <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('proposed')}</p>
+                <p className="text-sm text-ink dark:text-foreground">{v.proposal.hypothesis}</p>
+                {v.proposal.rationale && (
+                  <p className="whitespace-pre-line text-xs leading-relaxed text-ink-mute">{v.proposal.rationale}</p>
+                )}
+              </div>
+            ) : (
+              summary.length > 0 && (
+                <p className="mt-2 max-w-prose font-mono text-[11px] leading-relaxed text-ink-mute">{summary.join(' · ')}</p>
+              )
+            )}
+          </li>
+        );
+      })}
     </ol>
   );
+}
+
+function uniqueLines(text: string): string[] {
+  return [...new Set(text.split('\n').map((l) => l.trim()).filter(Boolean))];
 }
 
 function useRunLabels() {
@@ -1049,6 +1063,17 @@ function versionLabel(
   if (live) parts.push(t('liveVersion', { version: live }));
   if (draft) parts.push(t('draftVersion', { version: draft }));
   return parts.join(' · ') || '—';
+}
+
+function heroVersionLabel(
+  t: ReturnType<typeof useTranslations<'dashboard.journeys'>>,
+  live: number | null,
+  draft: number | null,
+): string {
+  const parts: string[] = [];
+  if (live) parts.push(`v${live}`);
+  if (draft) parts.push(t('draftVersion', { version: draft }));
+  return parts.join(' · ');
 }
 
 function Th({ children, className }: { children?: ReactNode; className?: string }) {

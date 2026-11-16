@@ -661,6 +661,7 @@ function specNodes(spec: RawSpec): RawNode[] {
 
 function appendSummary(existing: string | null, next: string): string {
   const lines = existing ? existing.split('\n') : [];
+  if (lines.includes(next)) return lines.slice(-20).join('\n');
   lines.push(next);
   return lines.slice(-20).join('\n');
 }

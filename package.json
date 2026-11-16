@@ -59,7 +59,7 @@
       "esbuild": "^0.28.1",
       "webpack": "^5.104.1",
       "tmp": "^0.2.4",
-      "hono": "^4.13.7",
+      "hono": "^4.13.16",
       "proxy-addr": "^2.0.8",
       "source-map-js": "^1.2.2",
       "@modelcontextprotocol/sdk@1": "^1.32.2",

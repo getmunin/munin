@@ -582,14 +582,24 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       .map((a) => a.id);
   }
 
-  function showComposerNote(text: string): void {
-    panel.composerNoteTextEl.textContent = text;
-    panel.composerNoteEl.hidden = false;
+  let composerNotice: string | null = null;
+
+  function renderComposerNote(): void {
+    const text =
+      composerNotice ?? (pendingAttachments.some((a) => a.state === 'error') ? strings.attachFailed : null);
+    panel.composerNoteEl.hidden = text === null;
+    panel.composerNoteTextEl.textContent = text ?? '';
   }
 
-  function clearComposerNote(): void {
-    panel.composerNoteEl.hidden = true;
-    panel.composerNoteTextEl.textContent = '';
+  function showComposerNote(text: string): void {
+    composerNotice = text;
+    renderComposerNote();
+  }
+
+  function dismissComposerNotice(): void {
+    if (composerNotice === null) return;
+    composerNotice = null;
+    renderComposerNote();
   }
 
   function renderAttachmentTray(): void {
@@ -620,12 +630,14 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       chip.appendChild(drop);
       panel.attachTrayEl.appendChild(chip);
     }
+    renderComposerNote();
   }
 
   function removeAttachment(key: string): void {
     const item = pendingAttachments.find((a) => a.key === key);
     if (!item) return;
     pendingAttachments = pendingAttachments.filter((a) => a.key !== key);
+    composerNotice = null;
     revokePreview(item);
     renderAttachmentTray();
     refreshComposerState();
@@ -644,6 +656,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   function acceptFiles(files: readonly File[]): void {
     const upload = hooks.onUploadAttachment;
     if (!upload) return;
+    dismissComposerNotice();
     for (const file of files) {
       if (pendingAttachments.length >= ATTACHMENT_PER_MESSAGE_MAX) {
         showComposerNote(format(strings.attachTooMany, locale, { n: ATTACHMENT_PER_MESSAGE_MAX }));
@@ -680,7 +693,6 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
         () => {
           if (!pendingAttachments.includes(item)) return;
           item.state = 'error';
-          showComposerNote(strings.attachFailed);
           renderAttachmentTray();
           refreshComposerState();
         },
@@ -707,7 +719,6 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     panel.lightboxImg.alt = '';
   }
 
-  panel.composerNoteCloseBtn.addEventListener('click', () => clearComposerNote());
   panel.attachBtn.addEventListener('click', () => {
     panel.attachInput.click();
   });
@@ -761,8 +772,8 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     emailCardEl = null;
     emailSaved = null;
     conversationEnvelope = null;
+    composerNotice = null;
     clearAttachments();
-    clearComposerNote();
     closeLightbox();
     refreshComposerState();
     paintChatHead();
@@ -811,6 +822,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   }
 
   panel.textarea.addEventListener('input', () => {
+    dismissComposerNotice();
     refreshComposerState();
     autoGrow(panel.textarea);
     if (panel.textarea.value.trim().length > 0) bumpTypingIntent();
@@ -831,8 +843,8 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     if (!canSend()) return;
     const attachmentIds = readyAttachmentIds();
     panel.textarea.value = '';
+    composerNotice = null;
     clearAttachments();
-    clearComposerNote();
     autoGrow(panel.textarea);
     refreshComposerState();
     if (typingIdleTimer) {
@@ -1281,7 +1293,6 @@ interface PanelHandles {
   attachTrayEl: HTMLDivElement;
   composerNoteEl: HTMLDivElement;
   composerNoteTextEl: HTMLSpanElement;
-  composerNoteCloseBtn: HTMLButtonElement;
   dropHintEl: HTMLDivElement;
   lightboxEl: HTMLDivElement;
   lightboxImg: HTMLImageElement;
@@ -1420,7 +1431,6 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
         <div class="composer-note" role="alert" hidden>
           <span class="composer-note-dot" aria-hidden="true"></span>
           <span class="composer-note-text"></span>
-          <button type="button" class="composer-note-close">${escapeHtml(strings.closeAriaLabel)}</button>
         </div>
         <div class="composer-atts" hidden></div>
         <textarea rows="1" autocomplete="off" autocorrect="off" placeholder="${escapeAttr(strings.composerPlaceholder)}" aria-label="${escapeAttr(strings.messageAriaLabel)}"></textarea>
@@ -1484,7 +1494,6 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
   const attachTrayEl = chatEl.querySelector('.composer-atts') as HTMLDivElement;
   const composerNoteEl = chatEl.querySelector('.composer-note') as HTMLDivElement;
   const composerNoteTextEl = chatEl.querySelector('.composer-note-text') as HTMLSpanElement;
-  const composerNoteCloseBtn = chatEl.querySelector('.composer-note-close') as HTMLButtonElement;
   const dropHintEl = chatEl.querySelector('.drop-hint') as HTMLDivElement;
   const lightboxEl = chatEl.querySelector('.lightbox') as HTMLDivElement;
   const lightboxImg = chatEl.querySelector('.lightbox-img') as HTMLImageElement;
@@ -1543,7 +1552,6 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
     attachTrayEl,
     composerNoteEl,
     composerNoteTextEl,
-    composerNoteCloseBtn,
     dropHintEl,
     lightboxEl,
     lightboxImg,

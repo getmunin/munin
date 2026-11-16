@@ -67,6 +67,8 @@ export interface UiController {
   isNudgeVisible(): boolean;
   showEmailCard(): void;
   setEmailSaved(email: string): void;
+  setEmailFailed(): void;
+  setHistoryFailed(failed: boolean): void;
   setView(view: 'welcome' | 'chat'): void;
   setChatKind(kind: ChatKind): void;
   resetChat(): void;
@@ -89,6 +91,7 @@ interface PendingAttachment {
   name: string;
   id: string | null;
   state: 'uploading' | 'ready' | 'error';
+  file: File;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -476,12 +479,19 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     paintChatHead();
   }
 
+  let connectionStatus: string | null = null;
+  let historyFailed = false;
+
   function paintChatHead(): void {
     const env = conversationEnvelope;
     const handedOver = !!env?.handedOver;
-    const sub = handedOver
-      ? `${env?.assigneeName ?? strings.defaultTeammateName} · ${strings.typicallyReplies}`
-      : strings.onlineNow;
+    const offline = connectionStatus !== null;
+    const sub = offline
+      ? strings.statusOffline
+      : handedOver
+        ? `${env?.assigneeName ?? strings.defaultTeammateName} · ${strings.typicallyReplies}`
+        : strings.onlineNow;
+    panel.chatSubLabel.parentElement?.classList.toggle('offline', offline);
     const defaultTitle = chatKind === 'new' ? strings.newConversation : strings.conversation;
     panel.chatTitle.textContent = env?.subject ?? defaultTitle;
     panel.chatSubLabel.textContent = sub;
@@ -511,9 +521,21 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
 
   let reconnectGraceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  function paintStatus(): void {
+    const text = connectionStatus ?? (historyFailed ? strings.historyLoadFailed : null);
+    panel.statusEl.hidden = text === null;
+    panel.statusEl.textContent = text ?? '';
+    paintChatHead();
+  }
+
+  function setHistoryFailed(failed: boolean): void {
+    historyFailed = failed;
+    paintStatus();
+  }
+
   function showReconnectingStatus(): void {
-    panel.statusEl.hidden = false;
-    panel.statusEl.textContent = strings.statusReconnecting;
+    connectionStatus = strings.statusReconnecting;
+    paintStatus();
     connectionDisabled = true;
     refreshComposerState();
   }
@@ -527,11 +549,11 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
         clearTimeout(reconnectGraceTimer);
         reconnectGraceTimer = null;
       }
-      panel.statusEl.hidden = true;
-      panel.statusEl.textContent = '';
+      connectionStatus = null;
+      paintStatus();
       connectionDisabled = false;
     } else if (state === 'reconnecting') {
-      if (!panel.statusEl.hidden || reconnectGraceTimer) return;
+      if (connectionStatus !== null || reconnectGraceTimer) return;
       reconnectGraceTimer = setTimeout(() => {
         reconnectGraceTimer = null;
         showReconnectingStatus();
@@ -542,8 +564,8 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
         clearTimeout(reconnectGraceTimer);
         reconnectGraceTimer = null;
       }
-      panel.statusEl.hidden = false;
-      panel.statusEl.textContent = strings.statusDisconnected;
+      connectionStatus = strings.statusDisconnected;
+      paintStatus();
       connectionDisabled = true;
     }
     refreshComposerState();
@@ -614,12 +636,22 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       img.src = item.previewUrl;
       img.alt = item.name;
       chip.appendChild(img);
-      if (item.state !== 'ready') {
+      if (item.state === 'uploading') {
         const badge = document.createElement('span');
         badge.className = 'att-chip-badge';
-        badge.textContent = item.state === 'uploading' ? '…' : '!';
-        badge.title = item.state === 'uploading' ? strings.attachUploading : strings.attachFailed;
+        badge.textContent = '…';
+        badge.title = strings.attachUploading;
         chip.appendChild(badge);
+      } else if (item.state === 'error') {
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'att-chip-badge att-chip-retry';
+        retry.title = strings.attachRetryAriaLabel;
+        retry.setAttribute('aria-label', strings.attachRetryAriaLabel);
+        retry.innerHTML =
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8" /><path d="M21 3v5h-5" /></svg>';
+        retry.addEventListener('click', () => retryAttachment(item.key));
+        chip.appendChild(retry);
       }
       const drop = document.createElement('button');
       drop.type = 'button';
@@ -644,6 +676,12 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     refreshComposerState();
   }
 
+  function retryAttachment(key: string): void {
+    const item = pendingAttachments.find((a) => a.key === key);
+    if (!item || item.state !== 'error') return;
+    startUpload(item);
+  }
+
   function clearAttachments(): void {
     for (const item of pendingAttachments) revokePreview(item);
     pendingAttachments = [];
@@ -655,8 +693,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   }
 
   function acceptFiles(files: readonly File[]): void {
-    const upload = hooks.onUploadAttachment;
-    if (!upload) return;
+    if (!hooks.onUploadAttachment) return;
     dismissComposerNotice();
     for (const file of files) {
       if (pendingAttachments.length >= ATTACHMENT_PER_MESSAGE_MAX) {
@@ -679,36 +716,43 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
         name: file.name || 'image',
         id: null,
         state: 'uploading',
+        file,
       };
       pendingAttachments = [...pendingAttachments, item];
-      renderAttachmentTray();
-      refreshComposerState();
-      void upload(file).then(
-        (res) => {
-          if (!pendingAttachments.includes(item)) return;
-          item.id = res.id;
-          item.state = 'ready';
-          renderAttachmentTray();
-          refreshComposerState();
-        },
-        (err: unknown) => {
-          if (!pendingAttachments.includes(item)) return;
-          if (isAttachmentTooLarge(err)) {
-            removeAttachment(item.key);
-            showComposerNote(format(strings.attachTooLarge, locale, { n: ATTACHMENT_MB_MAX }));
-            return;
-          }
-          item.state = 'error';
-          renderAttachmentTray();
-          refreshComposerState();
-        },
-      );
+      startUpload(item);
     }
   }
 
-  function imageFilesFrom(list: FileList | null | undefined): File[] {
-    if (!list) return [];
-    return Array.from(list).filter((f) => f.type.startsWith('image/'));
+  function startUpload(item: PendingAttachment): void {
+    const upload = hooks.onUploadAttachment;
+    if (!upload) return;
+    item.state = 'uploading';
+    renderAttachmentTray();
+    refreshComposerState();
+    void upload(item.file).then(
+      (res) => {
+        if (!pendingAttachments.includes(item)) return;
+        item.id = res.id;
+        item.state = 'ready';
+        renderAttachmentTray();
+        refreshComposerState();
+      },
+      (err: unknown) => {
+        if (!pendingAttachments.includes(item)) return;
+        if (isAttachmentTooLarge(err)) {
+          removeAttachment(item.key);
+          showComposerNote(format(strings.attachTooLarge, locale, { n: ATTACHMENT_MB_MAX }));
+          return;
+        }
+        item.state = 'error';
+        renderAttachmentTray();
+        refreshComposerState();
+      },
+    );
+  }
+
+  function filesFrom(list: FileList | null | undefined): File[] {
+    return list ? Array.from(list) : [];
   }
 
   function openLightbox(src: string, alt: string): void {
@@ -729,12 +773,12 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     panel.attachInput.click();
   });
   panel.attachInput.addEventListener('change', () => {
-    acceptFiles(imageFilesFrom(panel.attachInput.files));
+    acceptFiles(filesFrom(panel.attachInput.files));
     panel.attachInput.value = '';
   });
   panel.textarea.addEventListener('paste', (e) => {
     if (!hooks.onUploadAttachment) return;
-    const files = imageFilesFrom(e.clipboardData?.files);
+    const files = filesFrom(e.clipboardData?.files);
     if (files.length === 0) return;
     e.preventDefault();
     acceptFiles(files);
@@ -754,7 +798,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     if (!hooks.onUploadAttachment) return;
     e.preventDefault();
     panel.dropHintEl.hidden = true;
-    acceptFiles(imageFilesFrom(e.dataTransfer?.files));
+    acceptFiles(filesFrom(e.dataTransfer?.files));
   });
   panel.messagesEl.addEventListener('click', (e) => {
     const target = (e.target as HTMLElement | null)?.closest('[data-lightbox]');
@@ -796,6 +840,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     emailCardEl = renderEmailCard(strings, {
       onSubmit: (email) => {
         if (!EMAIL_RE.test(email)) return;
+        emailCardEl?.querySelector('.card-error')?.remove();
         hooks.onSetVisitorEmail?.(email);
       },
       onDismiss: () => {
@@ -816,6 +861,18 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     const replacement = renderEmailCardDone(strings, email);
     emailCardEl.replaceWith(replacement);
     emailCardEl = replacement;
+  }
+
+  function setEmailFailed(): void {
+    if (!emailCardEl || emailSaved) return;
+    let errorEl = emailCardEl.querySelector<HTMLElement>('.card-error');
+    if (!errorEl) {
+      errorEl = document.createElement('div');
+      errorEl.className = 'card-error';
+      errorEl.setAttribute('role', 'alert');
+      emailCardEl.querySelector('.card-form')?.after(errorEl);
+    }
+    errorEl.textContent = strings.emailSaveFailed;
   }
 
   let typingIdleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -977,6 +1034,8 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     isNudgeVisible,
     showEmailCard,
     setEmailSaved,
+    setEmailFailed,
+    setHistoryFailed,
     setView,
     setChatKind,
     resetChat,

@@ -71,6 +71,10 @@ export interface Strings {
   attachFailed: string;
   sendFailed: string;
   attachRemoveAriaLabel: string;
+  attachRetryAriaLabel: string;
+  statusOffline: string;
+  emailSaveFailed: string;
+  historyLoadFailed: string;
   attachTooMany: string;
   attachTypeRejected: string;
   attachTooLarge: string;

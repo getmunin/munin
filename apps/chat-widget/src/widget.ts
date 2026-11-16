@@ -32,6 +32,9 @@ import { createVoiceSession, type VoiceSession } from '@getmunin/widget-voice';
 
 type CallResult = { started: true } | { started: false; reason: string };
 
+const BACKFILL_RETRY_INITIAL_MS = 2000;
+const BACKFILL_RETRY_MAX_MS = 30000;
+
 function bootstrap(): void {
   const scriptEl = currentScript();
   if (!scriptEl) return;
@@ -169,6 +172,8 @@ export function start(config: WidgetConfig): void {
   let lastSeenAt: Date | undefined;
   let backfillInFlight = false;
   let backfillPending = false;
+  let backfillRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  let backfillRetryAttempt = 0;
   let agentTurnsThisSession = 0;
   let visitorHasEmail = !!config.visitor?.email;
   let emailCardShown = false;
@@ -262,12 +267,16 @@ export function start(config: WidgetConfig): void {
         hasMore = res.hasMore;
       }
       maybeShowEmailCard();
+      backfillRetryAttempt = 0;
+      ui.setHistoryFailed(false);
     } catch (err) {
       if (err instanceof WidgetApiError) {
         console.warn(`[munin-widget] backfill failed: ${err.status}`);
       } else {
         console.warn('[munin-widget] backfill failed:', err);
       }
+      ui.setHistoryFailed(true);
+      scheduleBackfillRetry();
     } finally {
       backfillInFlight = false;
       if (!historyLoaded) {
@@ -279,6 +288,16 @@ export function start(config: WidgetConfig): void {
         void backfill();
       }
     }
+  }
+
+  function scheduleBackfillRetry(): void {
+    if (backfillRetryTimer || realtime.state() !== 'connected') return;
+    const delay = Math.min(BACKFILL_RETRY_MAX_MS, BACKFILL_RETRY_INITIAL_MS * 2 ** backfillRetryAttempt);
+    backfillRetryAttempt += 1;
+    backfillRetryTimer = setTimeout(() => {
+      backfillRetryTimer = null;
+      void backfill();
+    }, delay);
   }
 
   async function refreshPastConversations(): Promise<void> {
@@ -376,6 +395,7 @@ export function start(config: WidgetConfig): void {
       } else {
         console.warn('[munin-widget] set email failed:', err);
       }
+      ui.setEmailFailed();
     }
   }
 
@@ -512,6 +532,7 @@ export function start(config: WidgetConfig): void {
       await ensureConversation();
     } catch (err) {
       console.warn('[munin-widget] call: start conversation failed:', err);
+      ui.showComposerError(strings.voiceFailed);
       return { started: false, reason: 'conversation_failed' };
     }
     return startVoice();

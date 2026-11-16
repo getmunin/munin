@@ -5757,7 +5757,7 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @next/env@16.4.3
+## @next/env@16.4.6
 
 > Next.js dotenv file loading
 - Homepage: https://github.com/vercel/next.js#readme
@@ -26012,7 +26012,7 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## next@16.4.3
+## next@16.4.6
 
 > The React Framework
 - Homepage: https://nextjs.org

@@ -1,5 +1,13 @@
 # @getmunin/docs-pages
 
+## 5.54.2
+
+### Patch Changes
+
+- 6e830c5: Build and test against Next.js 16.4.5, which patches the 2026-11-03 Next.js security advisories (image optimizer SVG bypass, Edge HttpOnly cookie exposure, `use cache` leaks).
+- @getmunin/backend-core@5.54.2
+  - @getmunin/types@5.54.2
+
 ## 5.54.1
 
 ### Patch Changes

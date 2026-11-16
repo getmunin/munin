@@ -533,7 +533,10 @@ export function start(config: WidgetConfig): void {
       void sendMessage(text, attachmentIds);
     },
     onUploadAttachment(file) {
-      return uploadAttachment(file);
+      return uploadAttachment(file).catch((err: unknown) => {
+        console.warn('[munin-widget] attachment upload failed:', err);
+        throw err;
+      });
     },
     onTypingIntent(intent) {
       realtime.sendTyping(intent === 'typing');

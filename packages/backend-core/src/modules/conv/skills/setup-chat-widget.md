@@ -206,7 +206,7 @@ Send `visitor.name` too whenever you know it. It is what every customer-facing s
 A visitor message can carry up to 10 images. Upload each one first, then name the ids on the message.
 
 1. `POST /v1/widget/attachments` with `{ channelId, conversationId, sessionId, name, mime, sizeBytes }` returns `{ id, uploadUrl, uploadMethod, uploadFields, uploadExpiresAt }`.
-2. `PUT` (or `POST`, per `uploadMethod`) the bytes to `uploadUrl`.
+2. `PUT` (or `POST`, per `uploadMethod`) the bytes to `uploadUrl`. With S3-compatible storage this request goes straight to the bucket, so an upload from a browser needs a bucket CORS rule that allows the page's origin; the backend's own CORS doesn't cover it.
 3. `POST /v1/widget/attachments/<id>/complete` with `{ channelId, conversationId, sessionId }` confirms the bytes, derives thumbnails, and returns the attachment with its signed `url` and `thumbnailUrl`.
 4. `POST /v1/widget/messages` with `attachmentIds: ["<id>", …]` on the message.
 

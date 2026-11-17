@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { PageSpinner } from '@getmunin/ui';
+import { Button, PageSpinner } from '@getmunin/ui';
 import { authClient } from '../auth-client';
 import { authorizationExpiresAt } from '../auth/authorization-expiry';
 import { checkConsentOrgBinding, type ConsentOrgBinding } from '../auth/consent-org-binding';
@@ -605,12 +605,13 @@ function ExpiredPane({ clientInfo, identity }: ExpiredPaneProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 border-t-[1px] border-rule-soft px-7 py-5 dark:border-rule-on-dark">
-        <a
-          href="/dashboard"
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink no-underline transition hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink"
+        <Button
+          size="lg"
+          variant="outline"
+          render={<a href="/dashboard" />}
         >
           {t('expired.dashboard')}
-        </a>
+        </Button>
       </div>
     </>
   );
@@ -664,22 +665,21 @@ function WrongAccountPane({
       )}
 
       <div className="flex flex-wrap items-center gap-3 border-t-[1px] border-rule-soft px-7 py-5 dark:border-rule-on-dark">
-        <button
-          type="button"
+        <Button
+          size="lg"
           onClick={onSwitchAccount}
           disabled={disabled}
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt dark:border-paper dark:bg-paper dark:text-ink dark:hover:border-cobalt-soft dark:hover:bg-cobalt-soft dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
           {switching ? t('wrongAccount.switching') : t('wrongAccount.switch')}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
           onClick={onCancel}
           disabled={disabled}
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink transition hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy === 'deny' ? t('blocked.cancelling') : t('blocked.cancel')}
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -728,20 +728,20 @@ function BlockedPane({
       )}
 
       <div className="flex flex-wrap items-center gap-3 border-t-[1px] border-rule-soft px-7 py-5 dark:border-rule-on-dark">
-        <button
-          type="button"
+        <Button
+          size="lg"
           onClick={onCancel}
           disabled={busy !== null}
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt dark:border-paper dark:bg-paper dark:text-ink dark:hover:border-cobalt-soft dark:hover:bg-cobalt-soft dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy === 'deny' ? t('blocked.cancelling') : t('blocked.cancel')}
-        </button>
-        <a
-          href="/dashboard"
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink no-underline transition hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink"
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
+          render={<a href="/dashboard" />}
         >
           {t('blocked.dashboard')}
-        </a>
+        </Button>
       </div>
     </>
   );
@@ -791,11 +791,10 @@ function ActionsFooter({ userName, busy, onAuthorize, onDeny, onSwitchAccount }:
   const t = useTranslations('dashboard.oauthConsent');
   return (
     <div className="flex flex-wrap items-center gap-3 border-t-[1px] border-rule-soft px-7 py-5 dark:border-rule-on-dark">
-      <button
-        type="button"
+      <Button
+        size="lg"
         onClick={onAuthorize}
         disabled={busy !== null}
-        className="inline-flex h-11 items-center justify-center gap-2 border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt dark:border-paper dark:bg-paper dark:text-ink dark:hover:border-cobalt-soft dark:hover:bg-cobalt-soft dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
       >
         {busy === 'allow' ? t('authorizing') : t('authorize')}
         {busy !== 'allow' && (
@@ -803,15 +802,15 @@ function ActionsFooter({ userName, busy, onAuthorize, onDeny, onSwitchAccount }:
             <path d="M5 12h14M13 5l7 7-7 7" />
           </svg>
         )}
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        size="lg"
+        variant="outline"
         onClick={onDeny}
         disabled={busy !== null}
-        className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink transition hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
       >
         {busy === 'deny' ? t('denying') : t('deny')}
-      </button>
+      </Button>
       <div className="ml-auto text-right text-[12px] leading-snug text-ink-mute">
         {t.rich('actingAs', {
           user: () => <span>{userName || '…'}</span>,

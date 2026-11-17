@@ -34,17 +34,18 @@ export function OutsideOrg({ orgId }: { orgId: string }) {
       footnote={orgId}
       action={
         <div className="flex flex-wrap gap-3">
+          <Button size="lg" onClick={switchAccount} disabled={switching}>
+            {switching ? t('switching') : t('switchAccount')}
+          </Button>
           {membership ? (
             <Button
               size="lg"
+              variant="outline"
               render={<Link href={orgDashboardPath('/dashboard', membership.orgId)} />}
             >
               {t('switchBack', { org: membership.name })}
             </Button>
           ) : null}
-          <Button size="lg" variant="outline" onClick={switchAccount} disabled={switching}>
-            {switching ? t('switching') : t('switchAccount')}
-          </Button>
         </div>
       }
     />

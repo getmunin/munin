@@ -2391,8 +2391,10 @@
     "outsideOrg": {
       "eyebrow": "Workspace · no access",
       "title": "This belongs to <em>another workspace</em>.",
-      "lede": "The link you followed points at a Munin workspace your account is not a member of. Ask an owner there to invite you, or open the one you do belong to.",
-      "switchBack": "Open {org}"
+      "lede": "The link you followed points at a Munin workspace your account is not a member of. Ask an owner there to invite you, sign in with another account, or open the one you do belong to.",
+      "switchBack": "Open {org}",
+      "switchAccount": "Sign in with another account",
+      "switching": "Signing out…"
     }
   },
   "agentSetup": {

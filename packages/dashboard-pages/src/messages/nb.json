@@ -2391,8 +2391,10 @@
     "outsideOrg": {
       "eyebrow": "Arbeidsområde · ingen tilgang",
       "title": "Dette hører til et <em>annet arbeidsområde</em>.",
-      "lede": "Lenken du fulgte peker til et Munin-arbeidsområde kontoen din ikke er medlem av. Be en eier der om en invitasjon, eller åpne det du selv hører til.",
-      "switchBack": "Åpne {org}"
+      "lede": "Lenken du fulgte peker til et Munin-arbeidsområde kontoen din ikke er medlem av. Be en eier der om en invitasjon, logg inn med en annen konto, eller åpne det du selv hører til.",
+      "switchBack": "Åpne {org}",
+      "switchAccount": "Logg inn med en annen konto",
+      "switching": "Logger ut …"
     }
   },
   "agentSetup": {

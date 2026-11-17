@@ -1,5 +1,18 @@
 # @getmunin/backend-core
 
+## 5.55.0
+
+### Patch Changes
+
+- be3ae49: Journey versions tab is calmer: only the live version carries a badge, other publish dates are plain text, the optimiser label is a small caption instead of a boxed badge, and repeated change-summary lines are collapsed. The journey header no longer repeats "live" next to the status badge. Draft edits no longer append a change-summary line that is already there.
+- @getmunin/inspector-app@5.55.0
+  - @getmunin/agent-runtime@5.55.0
+  - @getmunin/core@5.55.0
+  - @getmunin/db@5.55.0
+  - @getmunin/emails@5.55.0
+  - @getmunin/mcp-toolkit@5.55.0
+  - @getmunin/types@5.55.0
+
 ## 5.54.2
 
 ### Patch Changes

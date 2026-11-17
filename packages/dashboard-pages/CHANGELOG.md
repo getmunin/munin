@@ -1,5 +1,19 @@
 # @getmunin/dashboard-pages
 
+## 5.55.0
+
+### Minor Changes
+
+- 9630303: The "this belongs to another workspace" notice now offers **Sign in with another account** beside the way back into your own org. Following a link into a workspace you are a member of with a different account no longer means signing out from the account menu and finding the link again: the button signs out and sends you to the login page with the link as the redirect, so you land on it once you sign in with the right account. The label and its "Signing out…" state match the OAuth consent screen's wrong-account pane.
+
+  "Sign in with another account" is the primary (solid) action there, with the way back into your own org as the outline alternative, mirroring the consent screen's wrong-account pane. The OAuth consent screen's action buttons now use the shared `Button` from `@getmunin/ui` instead of hand-styled elements, so both screens share one button style: mono, uppercase, with the shared hover and disabled states.
+
+### Patch Changes
+
+- be3ae49: Journey versions tab is calmer: only the live version carries a badge, other publish dates are plain text, the optimiser label is a small caption instead of a boxed badge, and repeated change-summary lines are collapsed. The journey header no longer repeats "live" next to the status badge. Draft edits no longer append a change-summary line that is already there.
+- @getmunin/types@5.55.0
+  - @getmunin/ui@5.55.0
+
 ## 5.54.2
 
 ### Patch Changes

@@ -182,6 +182,11 @@ export interface OutreachProposalDto {
     appendsCta: boolean;
     appendsUnsubscribe: boolean;
   } | null;
+  preview?: {
+    subject: string | null;
+    body: string;
+    unfilled: Array<{ placeholder: string; fallback: string | null }>;
+  } | null;
   evidence?: Record<string, unknown>;
   hasEvidence?: boolean;
   revisionCount?: number;

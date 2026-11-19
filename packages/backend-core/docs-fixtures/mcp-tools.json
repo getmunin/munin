@@ -9529,7 +9529,7 @@
   {
     "name": "outreach_get_proposal",
     "title": "Outreach: Get proposal",
-    "description": "Read one outreach proposal by id, including the full curator `evidence` payload that `outreach_list_proposals` omits — the sources, compliance notes and reasoning recorded when the draft was filed. Also carries the draft, its status and decision history, and the nested `contact`, `campaign` and `delivery` summaries.",
+    "description": "Read one outreach proposal by id, including the full curator `evidence` payload that `outreach_list_proposals` omits — the sources, compliance notes and reasoning recorded when the draft was filed. Also carries the draft, its status and decision history, and the nested `contact`, `campaign` and `delivery` summaries. For a journey email, SMS or chat message whose draft uses merge fields, `preview` holds the subject and body with this contact's values filled in as they would be if sent now, and `preview.unfilled` lists the fields the contact lacks together with the fallback that will be used instead; `preview` is null otherwise.",
     "audiences": [
       "admin"
     ],

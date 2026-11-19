@@ -147,7 +147,10 @@ export function ReviewOutreachPane({
         : proposal.kind === 'journey'
           ? t('kindJourney')
           : t('kindInitial');
-  const segments = Math.max(1, Math.ceil(editedBody.length / SMS_SEGMENT_LENGTH));
+  const preview = !editing && editedBody === initialBody ? (proposal.preview ?? null) : null;
+  const shownBody = preview?.body ?? editedBody;
+  const shownSubject = preview?.subject ?? proposal.draftSubject;
+  const segments = Math.max(1, Math.ceil(shownBody.length / SMS_SEGMENT_LENGTH));
   const pickInvalid =
     choice === 'pick' &&
     (!pickedAt || Number.isNaN(new Date(pickedAt).getTime()) || new Date(pickedAt) <= new Date());
@@ -218,6 +221,21 @@ export function ReviewOutreachPane({
           </PaneNotice>
         ) : null}
 
+        {preview && preview.unfilled.length > 0 ? (
+          <PaneNotice tone="info" eyebrow={t('mergeUnfilledHeading')}>
+            {preview.unfilled.map(({ placeholder, fallback }) => {
+              const field = placeholder.replace(/^contact\.custom_fields\./, '');
+              return (
+                <span key={placeholder} className="block">
+                  {fallback
+                    ? t('mergeUnfilledFallback', { field, fallback })
+                    : t('mergeUnfilledBlank', { field })}
+                </span>
+              );
+            })}
+          </PaneNotice>
+        ) : null}
+
         <div className="border border-ink dark:border-rule-on-dark">
           {isEmail ? (
             <div className="grid grid-cols-[54px_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-rule-soft bg-paper-deep px-4 py-3 dark:border-rule-on-dark dark:bg-secondary">
@@ -231,11 +249,11 @@ export function ReviewOutreachPane({
               <span className="text-[12.5px] text-ink dark:text-foreground">
                 {[contactName, destination].filter(Boolean).join(' · ') || t('contactUnknown')}
               </span>
-              {proposal.draftSubject ? (
+              {shownSubject ? (
                 <>
                   <EnvelopeLabel>{t('subject')}</EnvelopeLabel>
                   <span className="text-[12.5px] font-medium text-ink dark:text-foreground">
-                    {proposal.draftSubject}
+                    {shownSubject}
                   </span>
                 </>
               ) : null}
@@ -248,7 +266,7 @@ export function ReviewOutreachPane({
               </span>
               {!isVoice ? (
                 <span className="ml-auto font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
-                  {t('smsSegments', { count: segments, chars: editedBody.length })}
+                  {t('smsSegments', { count: segments, chars: shownBody.length })}
                 </span>
               ) : null}
             </div>
@@ -264,7 +282,12 @@ export function ReviewOutreachPane({
             />
           ) : (
             <div className="flex flex-col gap-3 bg-bone px-5 py-5 text-[14.5px] leading-[1.7] text-ink dark:bg-secondary dark:text-foreground">
-              <Markdown>{editedBody}</Markdown>
+              {preview ? (
+                <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
+                  {t('mergeFilled')}
+                </span>
+              ) : null}
+              <Markdown>{shownBody}</Markdown>
               {appendsCta || appendsUnsubscribe ? (
                 <div className="mt-1 flex flex-col gap-2 border-t border-dashed border-ink-mute pt-3">
                   <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">

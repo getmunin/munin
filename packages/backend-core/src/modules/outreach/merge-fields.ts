@@ -104,3 +104,49 @@ function customFieldValue(value: unknown): string {
   if (typeof value === 'boolean') return String(value);
   return '';
 }
+
+export interface UnfilledPlaceholder {
+  placeholder: string;
+  fallback: string | null;
+}
+
+export interface MergePreview {
+  subject: string | null;
+  body: string;
+  unfilled: UnfilledPlaceholder[];
+}
+
+export interface JourneyMergeContact {
+  name: string | null;
+  customFields: Record<string, unknown> | null;
+}
+
+export function previewJourneyMerge(
+  message: { channel: string; subject: string | null; body: string },
+  contact: JourneyMergeContact,
+  orgName: string | null,
+): MergePreview | null {
+  if (message.channel === 'voice') return null;
+  const email = message.channel === 'email';
+  const subjectText = email ? message.subject : null;
+  const found = [
+    ...(subjectText ? listContentPlaceholders(subjectText) : []),
+    ...listContentPlaceholders(message.body),
+  ];
+  if (found.length === 0) return null;
+  const values: MergeValues = email
+    ? { name: contact.name, orgName, customFields: contact.customFields }
+    : { name: contact.name?.trim() ?? null, customFields: contact.customFields };
+  const subject = subjectText === null ? null : personalizeLine(subjectText, values);
+  const bodyValues = email ? { ...values, subject } : values;
+  const unfilled = new Map<string, UnfilledPlaceholder>();
+  for (const { name, fallback } of found) {
+    if (unfilled.has(name) || placeholderValue(name, bodyValues)?.trim()) continue;
+    unfilled.set(name, { placeholder: name, fallback: fallback?.trim() || null });
+  }
+  return {
+    subject,
+    body: personalizeText(message.body, bodyValues),
+    unfilled: [...unfilled.values()],
+  };
+}

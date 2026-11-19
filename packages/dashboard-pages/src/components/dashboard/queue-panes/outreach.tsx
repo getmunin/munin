@@ -58,6 +58,8 @@ export function OutreachQueuePane({
   const [sendAt, setSendAt] = useState('');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const proposedSendAt = futureDate(item.raw.proposedSendAt);
+  const preview = editedBody === initialBody ? (item.raw.preview ?? null) : null;
+  const shownSubject = preview?.subject ?? item.raw.draftSubject;
 
   useEffect(() => {
     setEditing(false);
@@ -216,12 +218,12 @@ export function OutreachQueuePane({
             />
           ) : (
             <div className="border-[1px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
-              {item.raw.draftSubject && (
+              {shownSubject && (
                 <p className="mb-2 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
-                  {t('subject', { subject: item.raw.draftSubject })}
+                  {t('subject', { subject: shownSubject })}
                 </p>
               )}
-              <Markdown>{editedBody}</Markdown>
+              <Markdown>{preview?.body ?? editedBody}</Markdown>
             </div>
           )}
         </section>

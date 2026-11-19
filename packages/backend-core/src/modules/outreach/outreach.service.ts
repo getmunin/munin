@@ -65,7 +65,8 @@ import { checkSendPolicy, type SendDecision } from './send-policy.ts';
 import { OutreachInvalidError } from './outreach-errors.ts';
 import { assertDeliverable, assertEligible } from './eligibility.ts';
 import { buildProposalDeltaCurationPrompt } from './curation-job.ts';
-import { personalizeText } from './merge-fields.ts';
+import { personalizeText, previewJourneyMerge, type MergePreview } from './merge-fields.ts';
+import { JourneyDeliverySchema } from './journey-delivery.ts';
 import {
   CuratorJobsService,
   type EnqueueInput,
@@ -265,6 +266,7 @@ export interface ProposalDto {
   campaign: ProposalCampaignSummary | null;
   journey: ProposalJourneySummary | null;
   delivery: ProposalDelivery | null;
+  preview: MergePreview | null;
 }
 
 export type ProposalSummaryDto = Omit<ProposalDto, 'evidence'> & { hasEvidence: boolean };
@@ -625,7 +627,9 @@ export class OutreachService {
           phone: schema.crmContacts.phone,
           companyId: schema.crmContacts.companyId,
           companyName: schema.crmCompanies.name,
+          customFields: schema.crmContacts.customFields,
         },
+        orgName: schema.orgs.name,
         campaign: {
           id: schema.outreachCampaigns.id,
           name: schema.outreachCampaigns.name,
@@ -648,6 +652,7 @@ export class OutreachService {
       .from(schema.outreachProposals)
       .leftJoin(schema.crmContacts, eq(schema.crmContacts.id, schema.outreachProposals.contactId))
       .leftJoin(schema.crmCompanies, eq(schema.crmCompanies.id, schema.crmContacts.companyId))
+      .leftJoin(schema.orgs, eq(schema.orgs.id, schema.outreachProposals.orgId))
       .leftJoin(
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
@@ -680,7 +685,38 @@ export class OutreachService {
         toProposalDeliverability(r.deliverability),
       ),
       journeySummary(r.journey),
+      proposalPreview(r.proposal, r.contact, r.orgName),
     );
+  }
+
+  private async rebuildProposal(
+    row: typeof schema.outreachProposals.$inferSelect,
+    before: ProposalDto,
+  ): Promise<ProposalDto> {
+    const textUnchanged = row.draftBody === before.draftBody && row.draftSubject === before.draftSubject;
+    const preview = textUnchanged ? before.preview : await this.loadProposalPreview(row);
+    return toProposalDto(row, before.contact, before.campaign, before.delivery, before.journey, preview);
+  }
+
+  private async loadProposalPreview(
+    row: typeof schema.outreachProposals.$inferSelect,
+  ): Promise<MergePreview | null> {
+    if (!JourneyDeliverySchema.safeParse(row.journeyDelivery).success) return null;
+    const ctx = getCurrentContext();
+    const [found] = await ctx.db
+      .select({
+        contact: {
+          id: schema.crmContacts.id,
+          name: schema.crmContacts.name,
+          customFields: schema.crmContacts.customFields,
+        },
+        orgName: schema.orgs.name,
+      })
+      .from(schema.crmContacts)
+      .leftJoin(schema.orgs, eq(schema.orgs.id, schema.crmContacts.orgId))
+      .where(eq(schema.crmContacts.id, row.contactId))
+      .limit(1);
+    return found ? proposalPreview(row, found.contact, found.orgName) : null;
   }
 
   async getProposal(id: string): Promise<ProposalDto> {
@@ -695,7 +731,9 @@ export class OutreachService {
           phone: schema.crmContacts.phone,
           companyId: schema.crmContacts.companyId,
           companyName: schema.crmCompanies.name,
+          customFields: schema.crmContacts.customFields,
         },
+        orgName: schema.orgs.name,
         campaign: {
           id: schema.outreachCampaigns.id,
           name: schema.outreachCampaigns.name,
@@ -718,6 +756,7 @@ export class OutreachService {
       .from(schema.outreachProposals)
       .leftJoin(schema.crmContacts, eq(schema.crmContacts.id, schema.outreachProposals.contactId))
       .leftJoin(schema.crmCompanies, eq(schema.crmCompanies.id, schema.crmContacts.companyId))
+      .leftJoin(schema.orgs, eq(schema.orgs.id, schema.outreachProposals.orgId))
       .leftJoin(
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
@@ -741,6 +780,7 @@ export class OutreachService {
       rows[0].campaign,
       toProposalDelivery(rows[0].contact, rows[0].campaign, rows[0].channel, toProposalDeliverability(rows[0].deliverability)),
       journeySummary(rows[0].journey),
+      proposalPreview(rows[0].proposal, rows[0].contact, rows[0].orgName),
     );
   }
 
@@ -1060,7 +1100,7 @@ export class OutreachService {
         .returning();
       return {
         outcome: 'deferred',
-        proposal: toProposalDto(deferred!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey),
+        proposal: await this.rebuildProposal(deferred!, proposal),
         reason: decision.reason,
       };
     }
@@ -1109,7 +1149,7 @@ export class OutreachService {
         },
       });
     }
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   async cancelScheduledSend(input: { id: string; reason: string }): Promise<ProposalDto> {
@@ -1149,7 +1189,7 @@ export class OutreachService {
         reason: input.reason,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   private async stampApproval(
@@ -1170,7 +1210,7 @@ export class OutreachService {
       })
       .where(eq(schema.outreachProposals.id, proposal.id))
       .returning();
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   private async enqueueEditCuration(sent: ProposalDto): Promise<void> {
@@ -1304,7 +1344,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   private async deliverInitialSms(
@@ -1379,7 +1419,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   async deliverVoiceCall(
@@ -1474,7 +1514,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   private async createVoiceStubConversation(args: {
@@ -1613,7 +1653,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   private async deliverFollowup(
@@ -1684,7 +1724,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   private async sendDecision(proposal: ProposalDto, at: Date): Promise<SendDecision | null> {
@@ -1739,7 +1779,7 @@ export class OutreachService {
       )
       .returning();
     if (!updated) return this.getProposal(id);
-    return toProposalDto(updated, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated, proposal);
   }
 
   async updateProposal(input: {
@@ -1830,7 +1870,7 @@ export class OutreachService {
         revisedAfterReview,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   async withdrawProposal(input: { id: string; reason: string }): Promise<ProposalDto> {
@@ -1864,7 +1904,7 @@ export class OutreachService {
         reason: input.reason,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   async dismissProposal(input: { id: string; reason?: string }): Promise<ProposalDto> {
@@ -1895,7 +1935,7 @@ export class OutreachService {
         reason: input.reason ?? null,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
+    return await this.rebuildProposal(updated!, proposal);
   }
 
   private requireVoiceCaller(vendor: string): OutreachVoiceCaller {
@@ -2311,6 +2351,7 @@ function toProposalDto(
   } | null = null,
   delivery: ProposalDelivery | null = null,
   journey: ProposalJourneySummary | null = null,
+  preview: MergePreview | null = null,
 ): ProposalDto {
   return {
     id: row.id,
@@ -2370,7 +2411,22 @@ function toProposalDto(
         : null,
     journey,
     delivery,
+    preview,
   };
+}
+
+function proposalPreview(
+  row: Pick<typeof schema.outreachProposals.$inferSelect, 'journeyDelivery' | 'draftSubject' | 'draftBody'>,
+  contact: { id: string | null; name: string | null; customFields: Record<string, unknown> | null } | null,
+  orgName: string | null,
+): MergePreview | null {
+  const delivery = JourneyDeliverySchema.safeParse(row.journeyDelivery);
+  if (!delivery.success || !contact?.id) return null;
+  return previewJourneyMerge(
+    { channel: delivery.data.channel, subject: row.draftSubject, body: row.draftBody },
+    { name: contact.name, customFields: contact.customFields },
+    orgName,
+  );
 }
 
 function toProposalSummaryDto(
@@ -2380,6 +2436,7 @@ function toProposalSummaryDto(
   campaign: Parameters<typeof toProposalDto>[2],
   delivery: ProposalDelivery | null,
   journey: ProposalJourneySummary | null = null,
+  preview: MergePreview | null = null,
 ): ProposalSummaryDto {
   const { evidence: _evidence, ...summary } = toProposalDto(
     { ...row, evidence: {} },
@@ -2387,6 +2444,7 @@ function toProposalSummaryDto(
     campaign,
     delivery,
     journey,
+    preview,
   );
   return { ...summary, hasEvidence };
 }

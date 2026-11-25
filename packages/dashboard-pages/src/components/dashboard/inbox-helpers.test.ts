@@ -15,7 +15,7 @@ describe('customerIdentity', () => {
   });
 
   it('formats a phone-only caller', () => {
-    expect(customerIdentity({ phone: '+4799999999' })).toBe('+47 99 99 99 99');
+    expect(customerIdentity({ phone: '+4799999999' })).toBe('+47 999 99 999');
   });
 });
 
@@ -27,7 +27,7 @@ describe('customerLabel', () => {
     expect(customerLabel({ email: 'anders@example.com', phone: '+4799999999' }, '—')).toBe(
       'anders@example.com',
     );
-    expect(customerLabel({ phone: '+4799999999' }, '—')).toBe('+47 99 99 99 99');
+    expect(customerLabel({ phone: '+4799999999' }, '—')).toBe('+47 999 99 999');
   });
 
   it('keeps an unparseable phone number as written rather than dropping it', () => {

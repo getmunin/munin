@@ -40,7 +40,7 @@
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
     "@playwright/test": "^1.65.1",
-    "@types/node": "^22.20.6",
+    "@types/node": "^24.19.4",
     "@types/react": "^19.3.2",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.7.0",

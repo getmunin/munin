@@ -54,6 +54,20 @@ Replies thread. A second message from the same number on the same channel lands 
 
 Suppressed contacts drop out of `crm_list_contacts_in_segment`, so they stop appearing in outreach audiences. Do not clear the flag to re-add someone — if they ask to opt back in, that is a new consent decision a human records.
 
+## What the voice agent is told
+
+Munin writes the voice agent's instructions at the start of every call, on the phone and from the chat widget alike. Three documents in the `agent-runtime` KB space supply them:
+
+| Document | Used for |
+|---|---|
+| `voice-system-prompt` | Every call. How to talk on a call: short spoken turns, use the tools, don't invent data. Phone callers and widget visitors both get it, so keep it free of anything that only holds for one of them. |
+| `voice-opener-cold` | The first greeting when the agent has not replied to this person yet: every phone call, and a widget call started before the agent answered in chat. |
+| `voice-opener-continuation` | The first greeting when a widget visitor switches to voice after the agent has already answered in chat. The one place to say the agent is the same assistant they were chatting with. |
+
+The company profile (`website-import/company-profile`) follows the system prompt, then the caller's number and the carrier's caller name on a phone call, or the widget's language on a widget call. The opener comes last.
+
+Every organization gets its own copy of these documents when it is created, and a release never rewrites them, so what calls use is whatever that copy says now. Edit them with `kb_update_document` when the operator asks; calls pick up the change within a minute. Delete one to reset it to the current built-in default. On Vapi these instructions replace the system prompt set on the assistant in the Vapi dashboard; the voice, transcriber and other call settings still come from the assistant.
+
 ## How a call transcript reads back
 
 `conv_get_conversation` returns a call as one message per turn, in the order the turns were spoken — `metadata.voiceTurnIndex` carries that position and `created_at` is derived from it, so a webhook that arrives late never reorders the transcript. The caller's turns are `author_type: end_user`, the assistant's are `agent`.

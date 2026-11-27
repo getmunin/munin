@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   deliveryFailure,
   sentDraftNote,
+  showsBodyBubble,
   startsAuthorGroup,
   suppressedKind,
 } from './inbox-message-bubble';
-import type { MessageDto } from './inbox-types';
+import type { MessageAttachment, MessageDto } from './inbox-types';
 
 const message = (overrides: Partial<MessageDto> = {}): MessageDto => ({
   id: 'cvm_1',
@@ -78,5 +79,34 @@ describe('deliveryFailure', () => {
   it('ignores inbound messages and internal notes, which are never delivered', () => {
     expect(deliveryFailure(message({ deliveryStatus: 'dead' }))).toBeNull();
     expect(deliveryFailure(outgoing({ deliveryStatus: 'dead', internal: true }))).toBeNull();
+  });
+});
+
+describe('showsBodyBubble', () => {
+  const image: MessageAttachment = {
+    id: 'cva_1',
+    name: 'skjerm.png',
+    mime: 'image/png',
+    sizeBytes: 1,
+    width: null,
+    height: null,
+    url: 'https://cdn.example.com/a.png',
+    thumbnailUrl: null,
+    deleted: false,
+  };
+
+  it('hides the empty bubble when a message carries only attachments', () => {
+    expect(showsBodyBubble(message({ body: '', attachments: [image] }))).toBe(false);
+    expect(showsBodyBubble(message({ body: '  \n', attachments: [image] }))).toBe(false);
+  });
+
+  it('keeps the bubble for text, for text-less messages without attachments, and for voice placeholders', () => {
+    expect(showsBodyBubble(message({ body: 'Se her', attachments: [image] }))).toBe(true);
+    expect(showsBodyBubble(message({ body: '' }))).toBe(true);
+    expect(showsBodyBubble(message({ body: '', attachments: [image], metadata: { voicePending: true } }))).toBe(true);
+  });
+
+  it('judges the displayed body when a translation replaces it', () => {
+    expect(showsBodyBubble(message({ body: 'Hei', attachments: [image] }), '')).toBe(false);
   });
 });

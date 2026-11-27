@@ -578,6 +578,44 @@ const skipReason = TEST_URL
     expect(instructions).not.toContain('kari.nordmann@example.com');
   });
 
+  it('tells a phone call which channel it arrived on, with that channel\'s descriptor', async () => {
+    const [existing] = await db
+      .select({ id: schema.kbSpaces.id })
+      .from(schema.kbSpaces)
+      .where(and(eq(schema.kbSpaces.orgId, orgId), eq(schema.kbSpaces.slug, 'agent-runtime')))
+      .limit(1);
+    const spaceId =
+      existing?.id ??
+      (
+        await db
+          .insert(schema.kbSpaces)
+          .values({ orgId, name: 'Agent runtime', slug: 'agent-runtime' })
+          .returning({ id: schema.kbSpaces.id })
+      )[0]!.id;
+    await db.insert(schema.kbDocuments).values({
+      orgId,
+      spaceId,
+      slug: `channel-${channelId.toLowerCase().replace(/_/g, '-')}`,
+      title: 'Channel: Threll main',
+      body: 'You answer the Acme support line. Only discuss Acme.',
+      contentHash: 'c'.repeat(64),
+      createdByType: 'agent',
+      createdById: 'agt_test',
+      updatedByType: 'agent',
+      updatedById: 'agt_test',
+    });
+
+    const res = await postEvent({
+      type: 'call.worker_request',
+      data: { callId: 'call_threll_channel_descriptor', direction: 'inbound', customer: { number: '+14155550113' } },
+    });
+    expect(res.status).toBe(200);
+    const { instructions } = (await res.json()) as { instructions: string };
+
+    expect(instructions).toContain(`[Channel]\nThis conversation arrived on the channel "Threll main" (channelId: ${channelId}).`);
+    expect(instructions).toContain('You answer the Acme support line. Only discuss Acme.');
+  });
+
   it('worker_request for an in-browser (webrtc) call creates no conversation', async () => {
     const callId = 'call_threll_webrtc';
     const res = await postEvent({

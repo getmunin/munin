@@ -24,6 +24,11 @@
       "package": "slick",
       "license": "MIT (http://mootools.net/license.txt)",
       "reason": "MIT. The package declares its license as MIT followed by a link to the MooTools MIT text, which the SPDX parser does not accept as an identifier. Runtime dependency of juice, the CSS inliner mjml-core uses to compile outreach email templates."
+    },
+    {
+      "package": "argparse",
+      "license": "PSF-2.0",
+      "reason": "Permissive. argparse 3 relabels the same Python Software Foundation license that 2.x declared as Python-2.0 (already allowed) with its PSF-2.0 component identifier. Pulled in through js-yaml 5 by @nestjs/swagger for OpenAPI YAML output."
     }
   ]
 }

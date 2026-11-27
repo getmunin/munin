@@ -40,18 +40,18 @@
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",
     "@getmunin/types": "workspace:*",
-    "@nestjs/common": "^12.0.1",
-    "@nestjs/core": "^12.0.1",
-    "drizzle-orm": "^0.45.2",
-    "nestjs-zod": "^5.5.0",
+    "@nestjs/common": "12.6.0",
+    "@nestjs/core": "^12.6.1",
+    "drizzle-orm": "^0.45.4",
+    "nestjs-zod": "^5.6.0",
     "postgres": "^3.4.9",
     "reflect-metadata": "^0.2.2",
-    "zod": "^4.6.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
-    "@types/node": "^22.20.1",
+    "@types/node": "^22.20.6",
     "eslint": "^9.39.5",
     "typescript": "^5.9.3",
     "vitest": "^4.1.12"

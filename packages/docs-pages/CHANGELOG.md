@@ -1,5 +1,18 @@
 # @getmunin/docs-pages
 
+## 5.56.0
+
+### Patch Changes
+
+- e954c5e: Bump dependencies to their latest minor and patch releases, including better-auth 1.7.28, NestJS 12.6, React 19.3, nodemailer 10.6 and mailparser 3.15. No major versions change. `@nestjs/common` is held at exactly 12.6.0 because 12.6.1 types `applyDecorators` with a return value that TypeScript rejects as a method or class decorator. Norwegian mobile numbers now display as `+47 999 99 999` instead of in pairs, following libphonenumber's updated metadata.
+- Updated dependencies [e954c5e]
+- Updated dependencies [5361aab]
+- Updated dependencies [343ad7d]
+- Updated dependencies [3cab42c]
+- Updated dependencies [cc41f5f]
+  - @getmunin/backend-core@5.56.0
+  - @getmunin/types@5.56.0
+
 ## 5.55.0
 
 ### Patch Changes
@@ -882,7 +895,7 @@ it pt nl pl cs sk hu ro`.
 - d1ad5a5: Restore the spaces that vanished after inline `<code>`/`<em>`/`<strong>` in the guide prose.
 
   Seven guides rendered joined-up words — "Open \_Choose tools*on the connection's menu", "must not
-  take an `email` or `customerId`argument", "\**All spoofable.*_Anyone can send mail". The space was in
+  take an `email` or `customerId`argument", "\*_All spoofable.__Anyone can send mail". The space was in
   the source; Next's bundled SWC dropped it. A multi-line JSX text run whose text contains an HTML
   entity (`&rsquo;`, `&quot;`, `&lt;`, …) loses its \_leading_ space during the entity decode — the
   trailing space survives, a single-line run survives, and the same source compiled with upstream

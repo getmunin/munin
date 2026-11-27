@@ -1,5 +1,19 @@
 # @getmunin/dashboard-pages
 
+## 5.56.0
+
+### Minor Changes
+
+- 343ad7d: Journey messages under review now show what the recipient will actually get. Merge fields such as `{{contact.custom_fields.first_name|der}}` are only filled in at send time, so the review pane used to show the raw tags. Outreach proposals now carry a `preview` with the subject and body merged for that contact, using the same rules as the send path (org name in email only, voice openings left as written). `preview.unfilled` lists the fields the contact is missing and the fallback that will be used instead. The review and scheduled panes show the merged text, with a notice for missing fields; editing still shows the raw merge fields.
+
+### Patch Changes
+
+- e954c5e: Bump dependencies to their latest minor and patch releases, including better-auth 1.7.28, NestJS 12.6, React 19.3, nodemailer 10.6 and mailparser 3.15. No major versions change. `@nestjs/common` is held at exactly 12.6.0 because 12.6.1 types `applyDecorators` with a return value that TypeScript rejects as a method or class decorator. Norwegian mobile numbers now display as `+47 999 99 999` instead of in pairs, following libphonenumber's updated metadata.
+- e42accd: Inbox: a message that carries only attachments (for example a visitor sending just an image) no longer renders an empty text bubble above the attachment. The bubble still shows for voice placeholders and for messages without attachments, matching how the chat widget already renders the same message.
+- Updated dependencies [e954c5e]
+  - @getmunin/types@5.56.0
+  - @getmunin/ui@5.56.0
+
 ## 5.55.0
 
 ### Minor Changes
@@ -2175,7 +2189,7 @@ permissions` while the post itself went out. The scope is now requested and name
 
 - 19c91b2: Drop 50 message keys that nothing reads, in both locales.
 
-  Audited every leaf in `messages/en.json` against every `useTranslations`/`getTranslations` call in this repo **and** in the cloud web app that merges over this tree, keeping anything reachable through a computed key — `t(\`${state}Title\`)` on the verify-email page, `t(\`moduleDescriptions.${module}.readWrite\`)`on the consent screen,`t(\`kind_${change.kind}\`)`, `t(\`saved_${policy}\`)`, `t(\`channel_${kind}\`)`, `t(\`${vendor}.${field}.placeholder\`)`, and the whole `errors.*`namespace, which is looked up by API error code. 1775 leaves down to 1725, en and nb still in exact parity, and no`t()` call in either repo resolves to a key that no longer exists.
+  Audited every leaf in `messages/en.json` against every `useTranslations`/`getTranslations` call in this repo **and** in the cloud web app that merges over this tree, keeping anything reachable through a computed key — `t(\`${state}Title\`)`on the verify-email page,`t(\`moduleDescriptions.${module}.readWrite\`)`on the consent screen,`t(\`kind_${change.kind}\`)`, `t(\`saved_${policy}\`)`, `t(\`channel_${kind}\`)`, `t(\`${vendor}.${field}.placeholder\`)`, and the whole `errors.*`namespace, which is looked up by API error code. 1775 leaves down to 1725, en and nb still in exact parity, and no`t()` call in either repo resolves to a key that no longer exists.
 
   The console rework cleaned up after itself almost completely: of the 138 keys used by the six components it deleted, 122 went with them and the other 16 are still live elsewhere. It left exactly two behind. `nav.closeMenu` was kept on purpose — its changeset says "kept, since `dashboard-pages` is shared with the cloud web app" — but the cloud app never referenced it either, so the reason it was spared does not hold. `dashboard.apiKeys.copyClipboard` went unused when `KeyReveal`'s `copyLabel` prop went away, unremarked.
 

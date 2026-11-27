@@ -38,7 +38,9 @@ import {
   buildBrowserAssistantOverrides,
   composeVoiceSystemPrompt,
   formatLanguageContext,
+  loadVoiceChannelContext,
   type ChatMessageSeed,
+  type VoiceChannelRef,
 } from '../vapi/vapi-assistant.ts';
 import { WIDGET_VOICE_VENDORS, WidgetChannelConfig } from './widget.types.ts';
 import type {
@@ -70,6 +72,7 @@ type ResolvedVoiceContext =
       available: true;
       conv: VoiceConvRow;
       channel: typeof schema.convChannels.$inferSelect;
+      widgetChannel: VoiceChannelRef;
       widgetConfig: WidgetChannelConfigT;
       endUserId: string;
     };
@@ -143,7 +146,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       if (!resolved.available) {
         return { available: false, reason: resolved.reason };
       }
-      const { conv, channel, widgetConfig, endUserId } = resolved;
+      const { conv, channel, widgetChannel, widgetConfig, endUserId } = resolved;
 
       const historyRows = await tx
         .select({
@@ -171,7 +174,16 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       const hadAgentTurn = trimmedHistory.some((m) => m.role === 'assistant');
       const widgetLocale = (conv.metadata as { locale?: unknown } | null)?.locale;
       const languageContext = formatLanguageContext(widgetLocale);
-      const systemPrompt = composeVoiceSystemPrompt(prompts, conv.id, languageContext);
+      const channelContext = await loadVoiceChannelContext(
+        new OrgScopedKbDocReader(this.db, orgId),
+        widgetChannel,
+      );
+      const systemPrompt = composeVoiceSystemPrompt(
+        prompts,
+        conv.id,
+        channelContext,
+        languageContext,
+      );
       const openerInstruction = prompts.get(
         hadAgentTurn ? VOICE_OPENER_CONTINUATION_SLUG : VOICE_OPENER_COLD_SLUG,
       );
@@ -408,7 +420,14 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       channel = candidates[0]!;
     }
 
-    return { available: true, conv, channel, widgetConfig, endUserId: conv.endUserId };
+    return {
+      available: true,
+      conv,
+      channel,
+      widgetChannel: { id: widgetChannel.id, name: widgetChannel.name },
+      widgetConfig,
+      endUserId: conv.endUserId,
+    };
   }
 
   async recordEvent(

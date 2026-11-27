@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { ActorIdentity, verifyVoiceCallToken, withContext, type RequestContext } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, and } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
 import { createApp } from '../../../bootstrap-app.ts';
 import { VapiService } from '../vapi/vapi.service.ts';
@@ -264,6 +264,56 @@ const skipReason = TEST_URL
       conversationId: aliceConvId,
       endUserId: body.descriptor!.metadata.endUserId,
     });
+  });
+
+  it('tells the voice agent about the widget channel the call started from, not the voice channel', async () => {
+    const [existing] = await db
+      .select({ id: schema.kbSpaces.id })
+      .from(schema.kbSpaces)
+      .where(and(eq(schema.kbSpaces.orgId, orgId), eq(schema.kbSpaces.slug, 'agent-runtime')))
+      .limit(1);
+    const spaceId =
+      existing?.id ??
+      (
+        await db
+          .insert(schema.kbSpaces)
+          .values({ orgId, name: 'Agent runtime', slug: 'agent-runtime' })
+          .returning({ id: schema.kbSpaces.id })
+      )[0]!.id;
+    const descriptorDoc = (channelId: string, body: string) => ({
+      orgId,
+      spaceId,
+      slug: `channel-${channelId.toLowerCase().replace(/_/g, '-')}`,
+      title: `Channel ${channelId}`,
+      body,
+      contentHash: 'd'.repeat(64),
+      createdByType: 'agent' as const,
+      createdById: 'agt_test',
+      updatedByType: 'agent' as const,
+      updatedById: 'agt_test',
+    });
+    await db
+      .insert(schema.kbDocuments)
+      .values([
+        descriptorDoc(widgetChannelId, 'You answer for the Acme web shop.'),
+        descriptorDoc(voiceChannelId, 'You answer the Globex phone line.'),
+      ]);
+
+    const { status, json } = await call({
+      channelId: widgetChannelId,
+      conversationId: aliceConvId,
+      sessionId: ALICE_SESSION_ID,
+    });
+    expect(status).toBe(201);
+    const body = json as {
+      descriptor: { assistantOverrides: { model: { messages: { role: string; content: string }[] } } };
+    };
+    const system = body.descriptor.assistantOverrides.model.messages[0]!.content;
+    expect(system).toContain(
+      `[Channel]\nThis conversation arrived on the channel "Web chat" (channelId: ${widgetChannelId}).`,
+    );
+    expect(system).toContain('You answer for the Acme web shop.');
+    expect(system).not.toContain('Globex');
   });
 
   it('never hands the browser the assistant server config or its webhook secret', async () => {

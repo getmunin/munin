@@ -396,6 +396,40 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect((await sent(ids[3]!)).subject).toBe('Du har hørt Thea');
   });
 
+  it('previews a pending email with the contact\'s merge fields filled in, names the missing ones, and refreshes the preview after an edit', async () => {
+    const journeyId = await publish([
+      welcome({
+        content: {
+          subject: 'Velkommen, {{contact.custom_fields.first_name|der}}',
+          body: 'Hei {{contact.custom_fields.first_name|der}}, {{contact.custom_fields.threll_name|threllen deres}} er klar hos {{org_name}}.',
+        },
+      }),
+      done,
+    ]);
+    const kari = await contact({ name: 'Kari Nordmann', customFields: { first_name: 'Kari' } });
+    await enroll(journeyId, kari.id);
+    await worker.tick();
+    const [row] = await proposalsFor(kari.id);
+
+    const expected = {
+      subject: 'Velkommen, Kari',
+      body: 'Hei Kari, threllen deres er klar hos Acme.',
+      unfilled: [{ placeholder: 'contact.custom_fields.threll_name', fallback: 'threllen deres' }],
+    };
+    const detail = await asAgent(() => outreach.getProposal(row!.id));
+    expect(detail.draftBody).toContain('{{contact.custom_fields.first_name|der}}');
+    expect(detail.preview).toEqual(expected);
+    const listed = await asAgent(() => outreach.listProposals({ contactId: kari.id }));
+    expect(listed.find((p) => p.id === row!.id)?.preview).toEqual(expected);
+
+    const edited = await runAs(person, () =>
+      outreach.updateProposal({ id: row!.id, draftBody: 'Hallo {{contact.custom_fields.first_name|der}}!' }),
+    );
+    expect(edited.preview).toEqual({ subject: 'Velkommen, Kari', body: 'Hallo Kari!', unfilled: [] });
+    const viewed = await runAs(person, () => outreach.markProposalViewed(row!.id));
+    expect(viewed.preview?.body).toBe('Hallo Kari!');
+  });
+
   it('withdraws a run\'s open emails when it ends, and refuses to send one for an ended run', async () => {
     const journeyId = await publish([welcome(), done]);
     const ola = await contact();

@@ -1,5 +1,33 @@
 # @getmunin/backend-core
 
+## 5.56.0
+
+### Minor Changes
+
+- 343ad7d: Journey messages under review now show what the recipient will actually get. Merge fields such as `{{contact.custom_fields.first_name|der}}` are only filled in at send time, so the review pane used to show the raw tags. Outreach proposals now carry a `preview` with the subject and body merged for that contact, using the same rules as the send path (org name in email only, voice openings left as written). `preview.unfilled` lists the fields the contact is missing and the fallback that will be used instead. The review and scheduled panes show the merged text, with a notice for missing fields; editing still shows the raw merge fields.
+
+### Patch Changes
+
+- e954c5e: Bump dependencies to their latest minor and patch releases, including better-auth 1.7.28, NestJS 12.6, React 19.3, nodemailer 10.6 and mailparser 3.15. No major versions change. `@nestjs/common` is held at exactly 12.6.0 because 12.6.1 types `applyDecorators` with a return value that TypeScript rejects as a method or class decorator. Norwegian mobile numbers now display as `+47 999 99 999` instead of in pairs, following libphonenumber's updated metadata.
+- 5361aab: Move three runtime dependencies to their next major version. `imapflow` 2 (inbound email polling) is a TypeScript rewrite of the same client with an unchanged API. `@modelcontextprotocol/ext-apps` 2 moves the inspector panel onto MCP SDK 2, which the panel already used for its types; the MCP Apps wire protocol is unchanged, so panels keep rendering in hosts on either version. `@vapi-ai/web` 3, bundled into the chat widget's voice mode, upgrades Daily's call client from 0.87 to 0.94 with no SDK API changes. `@types/node` now matches the Node 24 runtime the workspace already requires.
+- 3cab42c: Voice calls now read the per-channel descriptor (`agent-runtime/channel-<channel id>`) that text conversations already used. Threll and Vapi phone calls get a `[Channel]` block naming the voice channel, followed by its descriptor. A call started from the chat widget gets the widget channel's descriptor instead of the voice channel's, so one shared voice channel can take calls from several sites and each call still knows which site it is answering for. Before this, an organization running several sites from one Munin org could pin each voice channel's knowledge and store connections, but the voice agent was never told which site the call was for.
+- cc41f5f: The default voice system prompt no longer tells the agent it is continuing a browser chat. Inbound phone calls through Threll or Vapi use the same prompt, so callers who had never opened the chat widget were greeted by an agent that assumed they had. The "same assistant you were chatting with" framing now lives in the continuation opener, which is only used when a widget visitor switches to voice after the agent has already replied in chat.
+
+  Existing organizations keep the copy seeded into their `agent-runtime/voice-system-prompt` document; edit or delete that document to pick up the new default.
+
+  `skill://conv/setup-voice-sms-channel` now explains which `agent-runtime` documents make up the voice agent's instructions, when each opener is used, and that an organization's copies are not updated by a release.
+
+- Updated dependencies [e954c5e]
+- Updated dependencies [5361aab]
+- Updated dependencies [cc41f5f]
+  - @getmunin/agent-runtime@5.56.0
+  - @getmunin/core@5.56.0
+  - @getmunin/db@5.56.0
+  - @getmunin/emails@5.56.0
+  - @getmunin/inspector-app@5.56.0
+  - @getmunin/mcp-toolkit@5.56.0
+  - @getmunin/types@5.56.0
+
 ## 5.55.0
 
 ### Patch Changes

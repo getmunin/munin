@@ -1,5 +1,20 @@
 # @getmunin/core
 
+## 5.56.0
+
+### Patch Changes
+
+- e954c5e: Bump dependencies to their latest minor and patch releases, including better-auth 1.7.28, NestJS 12.6, React 19.3, nodemailer 10.6 and mailparser 3.15. No major versions change. `@nestjs/common` is held at exactly 12.6.0 because 12.6.1 types `applyDecorators` with a return value that TypeScript rejects as a method or class decorator. Norwegian mobile numbers now display as `+47 999 99 999` instead of in pairs, following libphonenumber's updated metadata.
+- cc41f5f: The default voice system prompt no longer tells the agent it is continuing a browser chat. Inbound phone calls through Threll or Vapi use the same prompt, so callers who had never opened the chat widget were greeted by an agent that assumed they had. The "same assistant you were chatting with" framing now lives in the continuation opener, which is only used when a widget visitor switches to voice after the agent has already replied in chat.
+
+  Existing organizations keep the copy seeded into their `agent-runtime/voice-system-prompt` document; edit or delete that document to pick up the new default.
+
+  `skill://conv/setup-voice-sms-channel` now explains which `agent-runtime` documents make up the voice agent's instructions, when each opener is used, and that an organization's copies are not updated by a release.
+
+- Updated dependencies [e954c5e]
+  - @getmunin/db@5.56.0
+  - @getmunin/types@5.56.0
+
 ## 5.55.0
 
 ### Patch Changes

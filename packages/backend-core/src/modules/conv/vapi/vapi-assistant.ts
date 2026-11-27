@@ -1,8 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
 import {
+  AGENT_RUNTIME_PROMPT_SPACE_SLUG,
   COMPANY_PROFILE_SLUG,
   VOICE_SYSTEM_PROMPT_SLUG,
+  channelInstancePromptSlug,
   type KbDocLocation,
   type KbDocReader,
   type PromptCache,
@@ -33,7 +35,7 @@ export const INHERITED_ASSISTANT_FIELDS = [
 export function composeVoiceSystemPrompt(
   prompts: PromptCache,
   conversationId: string,
-  extraContext?: string,
+  ...extraContext: (string | undefined)[]
 ): string {
   const base = prompts.get(VOICE_SYSTEM_PROMPT_SLUG);
   const idLine = `When a tool asks for a conversationId, pass exactly: ${conversationId} — never substitute placeholders.`;
@@ -41,8 +43,39 @@ export function composeVoiceSystemPrompt(
   const head = `${base} ${idLine}`;
   const parts = [head];
   if (companyContext) parts.push(`[Company context]\n${companyContext}`);
-  if (extraContext) parts.push(extraContext);
+  for (const extra of extraContext) if (extra) parts.push(extra);
   return parts.join('\n\n');
+}
+
+export interface VoiceChannelRef {
+  id: string;
+  name: string | null;
+}
+
+export function formatVoiceChannelContext(channel: VoiceChannelRef, descriptor: string): string {
+  const name = channel.name?.trim();
+  const origin = name
+    ? `This conversation arrived on the channel "${name}" (channelId: ${channel.id}).`
+    : `This conversation arrived on channelId: ${channel.id}.`;
+  const body = descriptor.trim();
+  return body ? `[Channel]\n${origin}\n\n${body}` : `[Channel]\n${origin}`;
+}
+
+export async function loadVoiceChannelContext(
+  reader: KbDocReader,
+  channel: VoiceChannelRef,
+): Promise<string> {
+  let descriptor = '';
+  try {
+    descriptor =
+      (await reader.getBody({
+        spaceSlug: AGENT_RUNTIME_PROMPT_SPACE_SLUG,
+        slug: channelInstancePromptSlug(channel.id),
+      })) ?? '';
+  } catch {
+    descriptor = '';
+  }
+  return formatVoiceChannelContext(channel, descriptor);
 }
 
 export function formatLanguageContext(locale: unknown): string | undefined {

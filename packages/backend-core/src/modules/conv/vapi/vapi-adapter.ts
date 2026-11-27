@@ -43,6 +43,7 @@ import {
   OrgScopedKbDocReader,
   buildInlineAssistantConfig,
   composeVoiceSystemPrompt,
+  loadVoiceChannelContext,
   type ChatMessageSeed,
 } from './vapi-assistant.ts';
 import { deleteMessageTranslations } from '../translation-helpers.ts';
@@ -207,8 +208,14 @@ export class VapiAdapter implements ChannelAdapter {
         },
       });
 
+      const channelContext = await loadVoiceChannelContext(reader, channel);
       const callerContext = formatCallerContext(msg.call?.customer);
-      const systemPrompt = composeVoiceSystemPrompt(prompts, conversationId, callerContext);
+      const systemPrompt = composeVoiceSystemPrompt(
+        prompts,
+        conversationId,
+        channelContext,
+        callerContext,
+      );
       const opener = prompts.get(VOICE_OPENER_COLD_SLUG);
 
       const messages: ChatMessageSeed[] = [

@@ -41,6 +41,8 @@ The support agent's prompt already contains a descriptor per channel *type* (`ch
 
 The agent sees the channel's name and id in a `[Channel]` block, followed by this text, after the channel-type descriptor — so the per-channel document only needs what is specific to the site, not chat formatting rules. Edits, new documents and deletions take effect within seconds; no restart. Leave the audience at the default `admin`: this is configuration, not customer-facing content.
 
+Voice calls get the same `[Channel]` block, read when the call starts. A phone call uses the descriptor of the voice channel the number belongs to. A call started from a chat widget uses the widget channel's descriptor, not the voice channel's, so one shared voice channel can take calls from every site's widget and each call still answers for the site it came from. Voice has no channel-type descriptor, so write a phone line's descriptor with speech in mind.
+
 ## 3. Pin each site's knowledge base
 
 Put each site's documents in a KB space of its own (`acme`, `globex`). Documents both sites share go in a third space (`shared`) that both channels include.

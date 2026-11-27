@@ -203,29 +203,31 @@ export function MessageBubble({
           ) : null}
         </div>
       ) : null}
-      <div
-        className={cn(
-          'max-w-full rounded-bubble border px-[13px] py-2.5 text-[13.5px] leading-[1.45]',
-          isOutbound ? 'rounded-br-[4px]' : 'rounded-bl-[4px]',
-          hue === undefined ? ROLE_BUBBLE[role] : 'text-ink dark:text-foreground',
-        )}
-        style={
-          hue === undefined
-            ? undefined
-            : {
-                background: `color-mix(in oklab, ${participantColor(hue)} 12%, transparent)`,
-                borderColor: `color-mix(in oklab, ${participantColor(hue)} 30%, transparent)`,
-              }
-        }
-      >
-        {pending ? (
-          <p className="italic opacity-60">{t('voicePending')}</p>
-        ) : noSpeech ? (
-          <p className="italic opacity-60">{t('noSpeech')}</p>
-        ) : (
-          <MessageMarkdown body={displayBody ?? message.body} />
-        )}
-      </div>
+      {showsBodyBubble(message, displayBody) ? (
+        <div
+          className={cn(
+            'max-w-full rounded-bubble border px-[13px] py-2.5 text-[13.5px] leading-[1.45]',
+            isOutbound ? 'rounded-br-[4px]' : 'rounded-bl-[4px]',
+            hue === undefined ? ROLE_BUBBLE[role] : 'text-ink dark:text-foreground',
+          )}
+          style={
+            hue === undefined
+              ? undefined
+              : {
+                  background: `color-mix(in oklab, ${participantColor(hue)} 12%, transparent)`,
+                  borderColor: `color-mix(in oklab, ${participantColor(hue)} 30%, transparent)`,
+                }
+          }
+        >
+          {pending ? (
+            <p className="italic opacity-60">{t('voicePending')}</p>
+          ) : noSpeech ? (
+            <p className="italic opacity-60">{t('noSpeech')}</p>
+          ) : (
+            <MessageMarkdown body={displayBody ?? message.body} />
+          )}
+        </div>
+      ) : null}
       <MessageAttachments attachments={message.attachments} onDelete={onDeleteAttachment} />
       {quoted.length > 0 ? <QuotedThread turns={quoted} /> : null}
       {isOutbound && <MessageComponents metadata={message.metadata} />}
@@ -271,6 +273,12 @@ export function MessageBubble({
       )}
     </div>
   );
+}
+
+export function showsBodyBubble(message: MessageDto, displayBody?: string): boolean {
+  if (message.metadata.voicePending === true || message.metadata.voiceNoSpeech === true) return true;
+  if (message.attachments.length === 0) return true;
+  return (displayBody ?? message.body).trim().length > 0;
 }
 
 export function deliveryFailure(message: MessageDto): 'dead' | 'failed' | null {

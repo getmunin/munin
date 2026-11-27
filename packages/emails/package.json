@@ -42,7 +42,7 @@
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
-    "@types/node": "^22.20.6",
+    "@types/node": "^24.19.4",
     "@types/react": "^19.3.2",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",

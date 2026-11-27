@@ -25,7 +25,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@vapi-ai/web": "^2.7.1"
+    "@vapi-ai/web": "^3.1.1"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",

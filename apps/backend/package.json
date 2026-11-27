@@ -44,7 +44,7 @@
     "@swc-node/register": "^1.12.1",
     "@swc/core": "^1.16.22",
     "@types/express": "^5.0.6",
-    "@types/node": "^22.20.6",
+    "@types/node": "^24.19.4",
     "eslint": "^9.39.5",
     "supertest": "^7.3.2",
     "tsx": "^4.23.15",

@@ -27,7 +27,7 @@
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
     "@getmunin/widget-voice": "workspace:*",
-    "@types/node": "^22.20.6",
+    "@types/node": "^24.19.4",
     "eslint": "^9.39.5",
     "happy-dom": "^21.0.4",
     "typescript": "^5.9.3",
